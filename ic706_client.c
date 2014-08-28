@@ -21,9 +21,6 @@
 
 #include "common.h"
 
-#define socket_error() \
-    do { strerror(errno); exit(EXIT_FAILURE); } while (0)
-
 
 static char *uart = NULL;          /* UART port */
 static char *server_ip = NULL;     /* Server IP */
@@ -96,6 +93,7 @@ static void parse_options(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    int  exit_code = EXIT_FAILURE;
     int  net_fd, uart_fd;
     int connected = 0;
     struct sockaddr_in serv_addr;
@@ -120,23 +118,38 @@ int main(int argc, char **argv)
     /* open and configure serial interface */
     uart_fd = open(uart , O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (uart_fd == -1)
-        socket_error();
+    {
+        fprintf(stderr, "Error opening UART: %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
     /* 19200 bps, 8n1, blocking */
-    set_serial_config(uart_fd, B19200, 0, 1);
+    if (set_serial_config(uart_fd, B19200, 0, 1) == -1)
+    {
+        fprintf(stderr, "Error configuring UART: %d: %s\n", errno,
+                strerror(errno));
+        goto cleanup;
+    }
 
     /* open and configure network interface */
     net_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (net_fd == -1)
-        socket_error();
+    {
+        fprintf(stderr, "Error creating socket: %d: %s\n", errno,
+                strerror(errno));
+        goto cleanup;
+    }
 
     memset(&serv_addr, 0, sizeof(serv_addr));
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(server_port);
     if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) == -1)
-        socket_error();
-
+    {
+        fprintf(stderr, "Error calling inet_pton(): %d: %s\n", errno,
+                strerror(errno));
+        goto cleanup;
+    }
 
     while (keep_running)
     {
@@ -193,11 +206,16 @@ int main(int argc, char **argv)
         }
     }
 
+    fprintf(stderr, "Shutting down...\n");
+    exit_code = EXIT_SUCCESS;
+
 cleanup:
-    free(uart);
-    free(server_ip);
     close(net_fd);
     close(uart_fd);
+    if (uart != NULL)
+        free(uart);
+    if (server_ip != NULL)
+        free(server_ip);
 
-    return 0;
+    exit(exit_code);;
 }

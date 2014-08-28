@@ -21,9 +21,6 @@
 
 #include "common.h"
 
-#define socket_error() \
-    do { strerror(errno); exit(EXIT_FAILURE); } while (0)
-
 
 static char *uart = NULL;       /* UART port */
 static int   port = 42000;      /* Network port */
@@ -91,6 +88,7 @@ static void parse_options(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    int    exit_code = EXIT_FAILURE;
     int    sockfd, net_fd, uart_fd;
     struct sockaddr_in serv_addr, cli_addr;
     socklen_t    cli_addr_len;
@@ -112,15 +110,27 @@ int main(int argc, char **argv)
     /* open and configure serial interface */
     uart_fd = open(uart, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (uart_fd == -1)
-        socket_error();
+    {
+        fprintf(stderr, "Error opening UART: %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
     /* 19200 bps, 8n1, blocking */
-    set_serial_config(uart_fd, B19200, 0, 1);
+    if (set_serial_config(uart_fd, B19200, 0, 1) == -1)
+    {
+        fprintf(stderr, "Error configuring UART: %d: %s\n", errno,
+                strerror(errno));
+        goto cleanup;
+    }
 
     /* open and configure network interface */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1)
-        socket_error();
+    {
+        fprintf(stderr, "Error creating socket: %d: %s\n", errno,
+                strerror(errno));
+        goto cleanup;
+    }
 
     /* bind socket to host address */
     memset(&serv_addr, 0, sizeof(struct sockaddr_in));
@@ -128,16 +138,26 @@ int main(int argc, char **argv)
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(port);
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-        socket_error();
+    {
+        fprintf(stderr, "bind() error: %d: %s\n", errno, strerror(errno));
+        goto cleanup;
+    }
  
-    if (listen(sockfd, 5) == -1)
-        socket_error();
+    if (listen(sockfd, 1) == -1)
+    {
+        fprintf(stderr, "listen() error: %d: %s\n", errno, strerror(errno));
+        goto cleanup;
+    }
 
-
+    memset(&cli_addr, 0, sizeof(struct sockaddr_in));
+    cli_addr_len = sizeof(cli_addr);
     /* this blocks until a connection is opened */
     net_fd = accept(sockfd, (struct sockaddr *) &cli_addr, &cli_addr_len);
     if (net_fd == -1)
-        socket_error();
+    {
+        fprintf(stderr, "accept() error: %d: %s\n", errno, strerror(errno));
+        goto cleanup;
+    }
 
     fprintf(stderr, "New connection from: %s\n", inet_ntoa(cli_addr.sin_addr));
 
@@ -173,9 +193,15 @@ int main(int argc, char **argv)
         }
     }
 
-    free(uart);
-    close(net_fd);
-    close(uart_fd);
+    fprintf(stderr, "Shutting down...\n");
+    exit_code = EXIT_SUCCESS;
 
-    return 0;
+cleanup:
+    close(uart_fd);
+    close(net_fd);
+    close(sockfd);
+    if (uart != NULL)
+        free(uart);
+
+    exit(exit_code);
 }
