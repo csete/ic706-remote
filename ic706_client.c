@@ -98,6 +98,7 @@ int main(int argc, char **argv)
     int connected = 0;
     struct sockaddr_in serv_addr;
 
+    struct xfr_buf uart_buf, net_buf;
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -151,9 +152,16 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
+    /* initialize buffers */
+    uart_buf.wridx = 0;
+    uart_buf.valid_pkts = 0;
+    uart_buf.invalid_pkts = 0;
+    net_buf.wridx = 0;
+    net_buf.valid_pkts = 0;
+    net_buf.invalid_pkts = 0;
+
     while (keep_running)
     {
-
         /* Try to connect to server */
         if (connect(net_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
         {
@@ -196,10 +204,10 @@ int main(int argc, char **argv)
             if (res > 0)
             {
                 if (FD_ISSET(net_fd, &readfds))
-                    transfer_data(net_fd, uart_fd);
+                    transfer_data(net_fd, uart_fd, &net_buf);
 
                 if (FD_ISSET(uart_fd, &readfds))
-                    transfer_data(uart_fd, net_fd);
+                    transfer_data(uart_fd, net_fd, &uart_buf);
             }
 
             usleep(LOOP_DELAY_US);
@@ -216,6 +224,11 @@ cleanup:
         free(uart);
     if (server_ip != NULL)
         free(server_ip);
+
+    fprintf(stderr, "  Valid packets uart / net: %6ld / %6ld\n",
+            uart_buf.valid_pkts, net_buf.valid_pkts);
+    fprintf(stderr, "Invalid packets uart / net: %6ld / %6ld\n",
+            uart_buf.invalid_pkts, net_buf.invalid_pkts);
 
     exit(exit_code);;
 }

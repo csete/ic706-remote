@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,6 +42,8 @@ int main(int argc, char **argv)
 
     struct timeval timeout;
     int res;
+
+    struct xfr_buf radio_buf, panel_buf;
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -77,6 +80,13 @@ int main(int argc, char **argv)
     /* maximum bit entry (fd) to test */
     maxfd = (radio_fd > panel_fd ? radio_fd : panel_fd) + 1;
 
+    radio_buf.wridx = 0;
+    radio_buf.valid_pkts = 0;
+    radio_buf.invalid_pkts = 0;
+    panel_buf.wridx = 0;
+    panel_buf.valid_pkts = 0;
+    panel_buf.invalid_pkts = 0;
+
     while (keep_running)
     {
         FD_SET(panel_fd, &readfs); /* set testing for source 1 */
@@ -91,10 +101,10 @@ int main(int argc, char **argv)
         if (res > 0)
         {
             if (FD_ISSET(panel_fd, &readfs))
-                transfer_data(panel_fd, radio_fd);
+                transfer_data(panel_fd, radio_fd, &panel_buf);
 
-             if (FD_ISSET(radio_fd, &readfs))
-                transfer_data(radio_fd, panel_fd);
+            if (FD_ISSET(radio_fd, &readfs))
+                transfer_data(radio_fd, panel_fd, &radio_buf);
         }
 
         usleep(LOOP_DELAY_US);
@@ -104,6 +114,11 @@ int main(int argc, char **argv)
 closefds:
     close(panel_fd);
     close(radio_fd);
+
+    fprintf(stderr, "  Valid packets radio / panel: %6ld / %6ld\n",
+            radio_buf.valid_pkts, panel_buf.valid_pkts);
+    fprintf(stderr, "Invalid packets radio / panel: %6ld / %6ld\n",
+            radio_buf.invalid_pkts, panel_buf.invalid_pkts);
 
     return 0;
 }

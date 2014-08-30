@@ -7,6 +7,7 @@
  *
  */
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <termios.h>
@@ -15,7 +16,7 @@
 #include "common.h"
 
 /* Print an array of chars as HEX numbers */
-inline void print_buffer(int from, int to, const char *buf, int len)
+inline void print_buffer(int from, int to, const uint8_t *buf, unsigned int len)
 {
     int i;
 
@@ -23,7 +24,7 @@ inline void print_buffer(int from, int to, const char *buf, int len)
 
     for (i = 0; i < len; i++)
     {
-        fprintf(stderr, " %02X", (unsigned char)buf[i]);
+        fprintf(stderr, " %02X", buf[i]);
     }
     fprintf(stderr, "\n");
 }
@@ -77,20 +78,79 @@ int set_serial_config(int fd, int speed, int parity, int blocking)
     return 0;
 }
 
-/* read data from input_fd and send it to output_fd */
-inline void transfer_data(int input_fd, int output_fd)
-{
-    char data[512];
 
-    size_t num = read(input_fd, data, 512);
+int read_data(int fd, struct xfr_buf *buffer)
+{
+    int type = PKT_TYPE_INCOMPLETE;
+    uint8_t *buf = buffer->data;
+
+    /* read data */
+    size_t num = read(fd, &buf[buffer->wridx], RDBUF_SIZE - buffer->wridx);
 
     if (num > 0)
     {
-        write(output_fd, data, num);
+        buffer->wridx += num;
 
-#if DEBUG
-        print_buffer(input_fd, output_fd, data, num);
-#endif
+        /* There is at least one character in the buffer.
+         *
+         * If buf[0] = 0xFE then this is a regular packet. Check if
+         * buf[end] = 0xFD, if yes, the packet is complete and return
+         * the packet type.
+         *
+         * If buf[0] = 0x00 and wridx = 1 then this is an EOS packet.
+         * If buf[0] = 0x00 and wridx > 1 then this is an invalid
+         * packet (does not start with 0xFE).
+         */
+        if (buf[0] == 0xFE)
+        {
+            if (buf[buffer->wridx-1] == 0xFD)
+                type = buf[1];
+            else
+                type = PKT_TYPE_INCOMPLETE;
+        }
+        else if ((buf[0] == 0x00) && (buffer->wridx == 1))
+        {
+            type = PKT_TYPE_EOS;
+        }
+        else
+        {
+            type = PKT_TYPE_INVALID;
+        }
     }
-    
+    else
+    {
+        type = PKT_TYPE_INVALID;
+        fprintf(stderr, "Error reading from FD %d: %d: %s\n", fd, errno,
+                strerror(errno));
+    }
+
+    return type;
+}
+
+
+int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
+{
+    int pkt_type;
+
+    pkt_type = read_data(ifd, buffer);
+    switch (pkt_type)
+    {
+        case PKT_TYPE_INCOMPLETE:
+            break;
+
+        case PKT_TYPE_INVALID:
+            buffer->invalid_pkts++;
+            buffer->wridx = 0;
+            break;
+
+        default:
+#if DEBUG
+            print_buffer(ifd, ofd, buffer->data, buffer->wridx);
+#endif
+            write(ofd, buffer->data, buffer->wridx);
+            buffer->wridx = 0;
+            buffer->valid_pkts++;
+    }
+
+    return pkt_type;
 }

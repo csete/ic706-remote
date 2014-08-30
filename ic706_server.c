@@ -93,6 +93,7 @@ int main(int argc, char **argv)
     struct sockaddr_in serv_addr, cli_addr;
     socklen_t    cli_addr_len;
 
+    struct xfr_buf uart_buf, net_buf;
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -161,6 +162,14 @@ int main(int argc, char **argv)
 
     fprintf(stderr, "New connection from: %s\n", inet_ntoa(cli_addr.sin_addr));
 
+    /* initialize buffers */
+    uart_buf.wridx = 0;
+    uart_buf.valid_pkts = 0;
+    uart_buf.invalid_pkts = 0;
+    net_buf.wridx = 0;
+    net_buf.valid_pkts = 0;
+    net_buf.invalid_pkts = 0;
+
     {
         fd_set readfds;
         int    maxfd;
@@ -183,10 +192,10 @@ int main(int argc, char **argv)
             if (res > 0)
             {
                 if (FD_ISSET(net_fd, &readfds))
-                    transfer_data(net_fd, uart_fd);
+                    transfer_data(net_fd, uart_fd, &net_buf);
 
                 if (FD_ISSET(uart_fd, &readfds))
-                    transfer_data(uart_fd, net_fd);
+                    transfer_data(uart_fd, net_fd, &uart_buf);
             }
 
             usleep(LOOP_DELAY_US);
@@ -202,6 +211,11 @@ cleanup:
     close(sockfd);
     if (uart != NULL)
         free(uart);
+
+    fprintf(stderr, "  Valid packets uart / net: %6ld / %6ld\n",
+            uart_buf.valid_pkts, net_buf.valid_pkts);
+    fprintf(stderr, "Invalid packets uart / net: %6ld / %6ld\n",
+            uart_buf.invalid_pkts, net_buf.invalid_pkts);
 
     exit(exit_code);
 }
