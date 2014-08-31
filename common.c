@@ -117,6 +117,11 @@ int read_data(int fd, struct xfr_buf *buffer)
             type = PKT_TYPE_INVALID;
         }
     }
+    else if (num == 0)
+    {
+        type = PKT_TYPE_EOF;
+        fprintf(stderr, "Received EOF from FD %d\n", fd);
+    }
     else
     {
         type = PKT_TYPE_INVALID;

@@ -67,6 +67,7 @@
 
 /* End of session: A single 0x00 sent both ways */
 #define PKT_TYPE_EOS        0xFB
+#define PKT_TYPE_EOF        0xFC /* we use this indicate 0-bytes read */
 #define PKT_TYPE_UNKNOWN    0xFE
 #define PKT_TYPE_INVALID    0xFF
 
