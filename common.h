@@ -22,7 +22,7 @@
 #define SELECT_TIMEOUT_USEC 0
 
 /* Amount of time in micorseconds we sleep in the main loop between cycles */
-#define LOOP_DELAY_US 10000
+#define LOOP_DELAY_US 1000
 
 /* default network ports */
 #define DEFAULT_CTL_PORT   42000
