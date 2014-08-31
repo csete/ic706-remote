@@ -89,9 +89,15 @@ static void parse_options(int argc, char **argv)
 int main(int argc, char **argv)
 {
     int    exit_code = EXIT_FAILURE;
-    int    sockfd, net_fd, uart_fd;
+    int    sock_fd, net_fd, uart_fd;
     struct sockaddr_in serv_addr, cli_addr;
     socklen_t    cli_addr_len;
+
+    struct timeval timeout;
+    fd_set active_fds, read_fds;
+    int    res = 0;
+    int    connected = 0;
+
 
     struct xfr_buf uart_buf, net_buf;
 
@@ -125,8 +131,8 @@ int main(int argc, char **argv)
     }
 
     /* open and configure network interface */
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1)
+    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock_fd == -1)
     {
         fprintf(stderr, "Error creating socket: %d: %s\n", errno,
                 strerror(errno));
@@ -138,13 +144,13 @@ int main(int argc, char **argv)
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(port);
-    if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
+    if (bind(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
     {
         fprintf(stderr, "bind() error: %d: %s\n", errno, strerror(errno));
         goto cleanup;
     }
  
-    if (listen(sockfd, 1) == -1)
+    if (listen(sock_fd, 1) == -1)
     {
         fprintf(stderr, "listen() error: %d: %s\n", errno, strerror(errno));
         goto cleanup;
@@ -152,15 +158,6 @@ int main(int argc, char **argv)
 
     memset(&cli_addr, 0, sizeof(struct sockaddr_in));
     cli_addr_len = sizeof(cli_addr);
-    /* this blocks until a connection is opened */
-    net_fd = accept(sockfd, (struct sockaddr *) &cli_addr, &cli_addr_len);
-    if (net_fd == -1)
-    {
-        fprintf(stderr, "accept() error: %d: %s\n", errno, strerror(errno));
-        goto cleanup;
-    }
-
-    fprintf(stderr, "New connection from: %s\n", inet_ntoa(cli_addr.sin_addr));
 
     /* initialize buffers */
     uart_buf.wridx = 0;
@@ -170,37 +167,72 @@ int main(int argc, char **argv)
     net_buf.valid_pkts = 0;
     net_buf.invalid_pkts = 0;
 
+
+    FD_ZERO(&active_fds);
+    FD_SET(uart_fd, &active_fds);
+    FD_SET(sock_fd, &active_fds);
+
+    while (keep_running)
     {
-        fd_set readfds;
-        int    maxfd;
+        /* previous select may have altered timeout */
+        timeout.tv_sec  = SELECT_TIMEOUT_SEC;
+        timeout.tv_usec = SELECT_TIMEOUT_USEC;
+        read_fds = active_fds;
 
-        struct timeval timeout;
-        int res;
+        res = select(FD_SETSIZE, &read_fds, NULL, NULL, &timeout);
 
-        maxfd = (net_fd > uart_fd ? net_fd : uart_fd) + 1;
-
-        while (keep_running)
+        if (res > 0)
         {
-            FD_SET(net_fd, &readfds);
-            FD_SET(uart_fd, &readfds);
+            if (FD_ISSET(uart_fd, &read_fds))
+                transfer_data(uart_fd, net_fd, &uart_buf);
 
-            /* previous select may have altered timeout */
-            timeout.tv_sec  = SELECT_TIMEOUT_SEC;
-            timeout.tv_usec = SELECT_TIMEOUT_USEC;
-            res = select(maxfd, &readfds, NULL, NULL, &timeout);
-
-            if (res > 0)
+            if (connected && FD_ISSET(net_fd, &read_fds))
             {
-                if (FD_ISSET(net_fd, &readfds))
-                    transfer_data(net_fd, uart_fd, &net_buf);
-
-                if (FD_ISSET(uart_fd, &readfds))
-                    transfer_data(uart_fd, net_fd, &uart_buf);
+                if (transfer_data(net_fd, uart_fd, &net_buf) == PKT_TYPE_EOF)
+                {
+                    fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
+                    FD_CLR(net_fd, &active_fds);
+                    close(net_fd);
+                    net_fd = -1;
+                    connected = 0;
+                }
             }
 
-            usleep(LOOP_DELAY_US);
+            if (FD_ISSET(sock_fd, &read_fds))
+            {
+                /* new connection */
+                int new = accept(sock_fd, (struct sockaddr *) &cli_addr,
+                                 &cli_addr_len);
+
+                if (new == -1)
+                {
+                    fprintf(stderr, "accept() error: %d: %s\n",
+                            errno, strerror(errno));
+                    goto cleanup;
+                }
+
+                fprintf(stderr, "New connection from %s\n",
+                        inet_ntoa(cli_addr.sin_addr));
+
+                if (!connected)
+                {
+                    fprintf(stderr, "Connection accepted (FD=%d)\n", new);
+                    net_fd = new;
+                    FD_SET(net_fd, &active_fds);
+                    connected = 1;
+                }
+                else
+                {
+                    /* refuse connection */
+                    close(new);
+                    fprintf(stderr, "Connection refused\n");
+                }
+            }
         }
+
+        usleep(LOOP_DELAY_US);
     }
+
 
     fprintf(stderr, "Shutting down...\n");
     exit_code = EXIT_SUCCESS;
@@ -208,7 +240,7 @@ int main(int argc, char **argv)
 cleanup:
     close(uart_fd);
     close(net_fd);
-    close(sockfd);
+    close(sock_fd);
     if (uart != NULL)
         free(uart);
 
