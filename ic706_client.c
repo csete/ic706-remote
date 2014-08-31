@@ -94,7 +94,8 @@ static void parse_options(int argc, char **argv)
 int main(int argc, char **argv)
 {
     int  exit_code = EXIT_FAILURE;
-    int  net_fd, uart_fd;
+    int  net_fd = -1;
+    int  uart_fd;
     int connected = 0;
     struct sockaddr_in serv_addr;
 
@@ -132,17 +133,7 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    /* open and configure network interface */
-    net_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (net_fd == -1)
-    {
-        fprintf(stderr, "Error creating socket: %d: %s\n", errno,
-                strerror(errno));
-        goto cleanup;
-    }
-
     memset(&serv_addr, 0, sizeof(serv_addr));
-
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(server_port);
     if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) == -1)
@@ -162,6 +153,17 @@ int main(int argc, char **argv)
 
     while (keep_running)
     {
+        if (net_fd == -1)
+        {
+            net_fd = socket(AF_INET, SOCK_STREAM, 0);
+            if (net_fd == -1)
+            {
+                fprintf(stderr, "Error creating socket: %d: %s\n", errno,
+                        strerror(errno));
+                goto cleanup;
+            }
+        }
+
         /* Try to connect to server */
         if (connect(net_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
         {
@@ -209,6 +211,8 @@ int main(int argc, char **argv)
                     {
                         fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
                         FD_CLR(net_fd, &readfds);
+                        close(net_fd);
+                        net_fd = -1;
                         connected = 0;
                     }
                 }
