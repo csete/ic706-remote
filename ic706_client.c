@@ -204,7 +204,14 @@ int main(int argc, char **argv)
             if (res > 0)
             {
                 if (FD_ISSET(net_fd, &readfds))
-                    transfer_data(net_fd, uart_fd, &net_buf);
+                {
+                    if (transfer_data(net_fd, uart_fd, &net_buf) == PKT_TYPE_EOF)
+                    {
+                        fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
+                        FD_CLR(net_fd, &readfds);
+                        connected = 0;
+                    }
+                }
 
                 if (FD_ISSET(uart_fd, &readfds))
                     transfer_data(uart_fd, net_fd, &uart_buf);
