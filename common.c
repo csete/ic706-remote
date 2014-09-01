@@ -23,9 +23,8 @@ inline void print_buffer(int from, int to, const uint8_t *buf, unsigned int len)
     fprintf(stderr, "%d -> %d:", from, to);
 
     for (i = 0; i < len; i++)
-    {
         fprintf(stderr, " %02X", buf[i]);
-    }
+
     fprintf(stderr, "\n");
 }
 

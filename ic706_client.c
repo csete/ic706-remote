@@ -98,8 +98,21 @@ int main(int argc, char **argv)
     int  uart_fd;
     int connected = 0;
     struct sockaddr_in serv_addr;
-
     struct xfr_buf uart_buf, net_buf;
+    fd_set readfds;
+    int    maxfd;
+
+    struct timeval timeout;
+    int res;
+
+
+    /* initialize buffers */
+    uart_buf.wridx = 0;
+    uart_buf.valid_pkts = 0;
+    uart_buf.invalid_pkts = 0;
+    net_buf.wridx = 0;
+    net_buf.valid_pkts = 0;
+    net_buf.invalid_pkts = 0;
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -143,14 +156,6 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    /* initialize buffers */
-    uart_buf.wridx = 0;
-    uart_buf.valid_pkts = 0;
-    uart_buf.invalid_pkts = 0;
-    net_buf.wridx = 0;
-    net_buf.valid_pkts = 0;
-    net_buf.invalid_pkts = 0;
-
     while (keep_running)
     {
         if (net_fd == -1)
@@ -185,12 +190,6 @@ int main(int argc, char **argv)
         connected = 1;
         fprintf(stderr, "Connected...\n");
 
-        fd_set readfds;
-        int    maxfd;
-
-        struct timeval timeout;
-        int res;
-
         maxfd = (net_fd > uart_fd ? net_fd : uart_fd) + 1;
 
         while (keep_running && connected)
@@ -203,23 +202,25 @@ int main(int argc, char **argv)
             timeout.tv_usec = SELECT_TIMEOUT_USEC;
             res = select(maxfd, &readfds, NULL, NULL, &timeout);
 
-            if (res > 0)
-            {
-                if (FD_ISSET(net_fd, &readfds))
-                {
-                    if (transfer_data(net_fd, uart_fd, &net_buf) == PKT_TYPE_EOF)
-                    {
-                        fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
-                        FD_CLR(net_fd, &readfds);
-                        close(net_fd);
-                        net_fd = -1;
-                        connected = 0;
-                    }
-                }
+            if (res <= 0)
+                continue;
 
-                if (FD_ISSET(uart_fd, &readfds))
-                    transfer_data(uart_fd, net_fd, &uart_buf);
+            /* service network socket */
+            if (FD_ISSET(net_fd, &readfds))
+            {
+                if (transfer_data(net_fd, uart_fd, &net_buf) == PKT_TYPE_EOF)
+                {
+                    fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
+                    FD_CLR(net_fd, &readfds);
+                    close(net_fd);
+                    net_fd = -1;
+                    connected = 0;
+                }
             }
+
+            /* service UART port */
+            if (FD_ISSET(uart_fd, &readfds))
+                transfer_data(uart_fd, net_fd, &uart_buf);
 
             usleep(LOOP_DELAY_US);
         }

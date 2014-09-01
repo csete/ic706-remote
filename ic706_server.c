@@ -98,8 +98,16 @@ int main(int argc, char **argv)
     int    res = 0;
     int    connected = 0;
 
-
     struct xfr_buf uart_buf, net_buf;
+
+    /* initialize buffers */
+    uart_buf.wridx = 0;
+    uart_buf.valid_pkts = 0;
+    uart_buf.invalid_pkts = 0;
+    net_buf.wridx = 0;
+    net_buf.valid_pkts = 0;
+    net_buf.invalid_pkts = 0;
+
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -159,15 +167,6 @@ int main(int argc, char **argv)
     memset(&cli_addr, 0, sizeof(struct sockaddr_in));
     cli_addr_len = sizeof(cli_addr);
 
-    /* initialize buffers */
-    uart_buf.wridx = 0;
-    uart_buf.valid_pkts = 0;
-    uart_buf.invalid_pkts = 0;
-    net_buf.wridx = 0;
-    net_buf.valid_pkts = 0;
-    net_buf.invalid_pkts = 0;
-
-
     FD_ZERO(&active_fds);
     FD_SET(uart_fd, &active_fds);
     FD_SET(sock_fd, &active_fds);
@@ -180,53 +179,53 @@ int main(int argc, char **argv)
         read_fds = active_fds;
 
         res = select(FD_SETSIZE, &read_fds, NULL, NULL, &timeout);
+        if (res <= 0)
+            continue;
 
-        if (res > 0)
+        /* service UART port */
+        if (FD_ISSET(uart_fd, &read_fds))
+            transfer_data(uart_fd, net_fd, &uart_buf);
+
+        /* service network socket */
+        if (connected && FD_ISSET(net_fd, &read_fds))
         {
-            if (FD_ISSET(uart_fd, &read_fds))
-                transfer_data(uart_fd, net_fd, &uart_buf);
-
-            if (connected && FD_ISSET(net_fd, &read_fds))
+            if (transfer_data(net_fd, uart_fd, &net_buf) == PKT_TYPE_EOF)
             {
-                if (transfer_data(net_fd, uart_fd, &net_buf) == PKT_TYPE_EOF)
-                {
-                    fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
-                    FD_CLR(net_fd, &active_fds);
-                    close(net_fd);
-                    net_fd = -1;
-                    connected = 0;
-                }
+                fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
+                FD_CLR(net_fd, &active_fds);
+                close(net_fd);
+                net_fd = -1;
+                connected = 0;
+            }
+        }
+
+        /* check if there are any new connections pending */
+        if (FD_ISSET(sock_fd, &read_fds))
+        {
+            int new = accept(sock_fd, (struct sockaddr *) &cli_addr,
+                             &cli_addr_len);
+
+            if (new == -1)
+            {
+                fprintf(stderr, "accept() error: %d: %s\n", errno,
+                        strerror(errno));
+                goto cleanup;
             }
 
-            if (FD_ISSET(sock_fd, &read_fds))
+            fprintf(stderr, "New connection from %s\n",
+                    inet_ntoa(cli_addr.sin_addr));
+
+            if (!connected)
             {
-                /* new connection */
-                int new = accept(sock_fd, (struct sockaddr *) &cli_addr,
-                                 &cli_addr_len);
-
-                if (new == -1)
-                {
-                    fprintf(stderr, "accept() error: %d: %s\n",
-                            errno, strerror(errno));
-                    goto cleanup;
-                }
-
-                fprintf(stderr, "New connection from %s\n",
-                        inet_ntoa(cli_addr.sin_addr));
-
-                if (!connected)
-                {
-                    fprintf(stderr, "Connection accepted (FD=%d)\n", new);
-                    net_fd = new;
-                    FD_SET(net_fd, &active_fds);
-                    connected = 1;
-                }
-                else
-                {
-                    /* refuse connection */
-                    close(new);
-                    fprintf(stderr, "Connection refused\n");
-                }
+                fprintf(stderr, "Connection accepted (FD=%d)\n", new);
+                net_fd = new;
+                FD_SET(net_fd, &active_fds);
+                connected = 1;
+            }
+            else
+            {
+                fprintf(stderr, "Connection refused\n");
+                close(new);
             }
         }
 
