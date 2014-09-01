@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -151,6 +152,7 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
         break;
 
     default:
+        /* we also "send" on EOF packet because buffer may not be empty */
 #if DEBUG
         print_buffer(ifd, ofd, buffer->data, buffer->wridx);
 #endif
@@ -160,4 +162,23 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
     }
 
     return pkt_type;
+}
+
+
+uint64_t time_ms(void)
+{
+    struct timeval  tval;
+
+    gettimeofday(&tval, NULL);
+
+    return 1e3 * tval.tv_sec - 1e-3 * tval.tv_usec;
+}
+
+uint64_t time_us(void)
+{
+    struct timeval  tval;
+
+    gettimeofday(&tval, NULL);
+
+    return 1e6 * tval.tv_sec - tval.tv_usec;
 }

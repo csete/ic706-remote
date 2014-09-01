@@ -119,5 +119,10 @@ inline void     print_buffer(int from, int to, const uint8_t * buf,
                              unsigned int len);
 int             set_serial_config(int fd, int speed, int parity, int blocking);
 
+/** Get current time in milliseconds. */
+uint64_t        time_ms(void);
+
+/** Get current time in microseconds. */
+uint64_t        time_us(void);
 
 #endif
