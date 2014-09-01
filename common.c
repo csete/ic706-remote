@@ -171,7 +171,7 @@ uint64_t time_ms(void)
 
     gettimeofday(&tval, NULL);
 
-    return 1e3 * tval.tv_sec - 1e-3 * tval.tv_usec;
+    return 1e3 * tval.tv_sec + 1e-3 * tval.tv_usec;
 }
 
 uint64_t time_us(void)
@@ -180,5 +180,5 @@ uint64_t time_us(void)
 
     gettimeofday(&tval, NULL);
 
-    return 1e6 * tval.tv_sec - tval.tv_usec;
+    return 1e6 * tval.tv_sec + tval.tv_usec;
 }
