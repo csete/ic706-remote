@@ -6,7 +6,7 @@
  * Simplified BSD License. See license.txt for details.
  *
  */
-#include <arpa/inet.h> 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -22,10 +22,10 @@
 #include "common.h"
 
 
-static char *uart = NULL;          /* UART port */
-static char *server_ip = NULL;     /* Server IP */
-static int   server_port = 42000;  /* Network port */
-static int keep_running = 1;       /* set to 0 to exit infinite loop */
+static char    *uart = NULL;    /* UART port */
+static char    *server_ip = NULL;       /* Server IP */
+static int      server_port = 42000;    /* Network port */
+static int      keep_running = 1;       /* set to 0 to exit infinite loop */
 
 void signal_handler(int signo)
 {
@@ -43,13 +43,11 @@ static void help(void)
 {
     static const char help_string[] =
         "\n Usage: ic706_client [options]\n"
-        "\n Possible options are:\n"
-        "\n"
+        "\n Possible options are:\n\n"
         "  -s    Server IP (default is 127.0.0.1).\n"
         "  -p    Network port number (default is 42000).\n"
         "  -u    Uart port (default is /dev/ttyO1).\n"
-        "  -h    This help message.\n"
-        "\n";
+        "  -h    This help message.\n\n";
 
     fprintf(stderr, "%s", help_string);
 }
@@ -57,7 +55,7 @@ static void help(void)
 /* Parse command line options */
 static void parse_options(int argc, char **argv)
 {
-    int option;
+    int             option;
 
     if (argc > 1)
     {
@@ -93,17 +91,17 @@ static void parse_options(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    int  exit_code = EXIT_FAILURE;
-    int  net_fd = -1;
-    int  uart_fd;
-    int connected = 0;
+    int             exit_code = EXIT_FAILURE;
+    int             net_fd = -1;
+    int             uart_fd;
+    int             connected = 0;
     struct sockaddr_in serv_addr;
-    struct xfr_buf uart_buf, net_buf;
-    fd_set readfds;
-    int    maxfd;
+    struct xfr_buf  uart_buf, net_buf;
+    fd_set          readfds;
+    int             maxfd;
 
-    struct timeval timeout;
-    int res;
+    struct timeval  timeout;
+    int             res;
 
 
     /* initialize buffers */
@@ -131,10 +129,11 @@ int main(int argc, char **argv)
     fprintf(stderr, "using server port %d\n", server_port);
 
     /* open and configure serial interface */
-    uart_fd = open(uart , O_RDWR | O_NOCTTY | O_NONBLOCK);
+    uart_fd = open(uart, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (uart_fd == -1)
     {
-        fprintf(stderr, "Error opening UART: %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "Error opening UART: %d: %s\n", errno,
+                strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -170,7 +169,8 @@ int main(int argc, char **argv)
         }
 
         /* Try to connect to server */
-        if (connect(net_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
+        if (connect(net_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))
+            == -1)
         {
             fprintf(stderr, "Connect error %d: %s\n", errno, strerror(errno));
 
@@ -198,7 +198,7 @@ int main(int argc, char **argv)
             FD_SET(uart_fd, &readfds);
 
             /* previous select may have altered timeout */
-            timeout.tv_sec  = SELECT_TIMEOUT_SEC;
+            timeout.tv_sec = SELECT_TIMEOUT_SEC;
             timeout.tv_usec = SELECT_TIMEOUT_USEC;
             res = select(maxfd, &readfds, NULL, NULL, &timeout);
 
@@ -229,7 +229,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "Shutting down...\n");
     exit_code = EXIT_SUCCESS;
 
-cleanup:
+  cleanup:
     close(net_fd);
     close(uart_fd);
     if (uart != NULL)

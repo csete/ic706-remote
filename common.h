@@ -67,17 +67,16 @@
 
 /* End of session: A single 0x00 sent both ways */
 #define PKT_TYPE_EOS        0xFB
-#define PKT_TYPE_EOF        0xFC /* we use this indicate 0-bytes read */
+#define PKT_TYPE_EOF        0xFC        /* we use this indicate 0-bytes read */
 #define PKT_TYPE_UNKNOWN    0xFE
 #define PKT_TYPE_INVALID    0xFF
 
 /* convenience struct for data transfers */
-struct xfr_buf
-{
-    uint8_t  data[RDBUF_SIZE];
-    int      wridx;             /* next available write slot. */
-    uint64_t valid_pkts;        /* number of valid packets */
-    uint64_t invalid_pkts;      /* number of invalid packets */
+struct xfr_buf {
+    uint8_t         data[RDBUF_SIZE];
+    int             wridx;      /* next available write slot. */
+    uint64_t        valid_pkts; /* number of valid packets */
+    uint64_t        invalid_pkts;       /* number of invalid packets */
 };
 
 /** Read data from file descriptor.
@@ -102,7 +101,7 @@ struct xfr_buf
  * @bug We assume that 0xFD can only occur as the last byte during a
  *      read() op, which is not always the case.
  */
-int read_data(int fd, struct xfr_buf *buffer);
+int             read_data(int fd, struct xfr_buf *buffer);
 
 /**
  * Transfer data from one interface to the other.
@@ -114,10 +113,11 @@ int read_data(int fd, struct xfr_buf *buffer);
  *
  * \todo Some packet type are transfered, others are not
  */
-int transfer_data(int ifd, int ofd, struct xfr_buf *buffer);
+int             transfer_data(int ifd, int ofd, struct xfr_buf *buffer);
 
-inline void print_buffer(int from, int to, const uint8_t *buf, unsigned int len);
-int set_serial_config(int fd, int speed, int parity, int blocking);
+inline void     print_buffer(int from, int to, const uint8_t * buf,
+                             unsigned int len);
+int             set_serial_config(int fd, int speed, int parity, int blocking);
 
 
 #endif

@@ -16,9 +16,10 @@
 #include "common.h"
 
 /* Print an array of chars as HEX numbers */
-inline void print_buffer(int from, int to, const uint8_t *buf, unsigned int len)
+inline void print_buffer(int from, int to, const uint8_t * buf,
+                         unsigned int len)
 {
-    int i;
+    int             i;
 
     fprintf(stderr, "%d -> %d:", from, to);
 
@@ -31,29 +32,30 @@ inline void print_buffer(int from, int to, const uint8_t *buf, unsigned int len)
 /* Configure serial interface to raw mode with specified attributes */
 int set_serial_config(int fd, int speed, int parity, int blocking)
 {
-    struct termios tty;
+    struct termios  tty;
+
     memset(&tty, 0, sizeof(tty));
-    if (tcgetattr (fd, &tty) != 0)
+    if (tcgetattr(fd, &tty) != 0)
     {
         fprintf(stderr, "error %d from tcgetattr", errno);
         return -1;
     }
 
-    cfsetospeed (&tty, speed);
-    cfsetispeed (&tty, speed);
+    cfsetospeed(&tty, speed);
+    cfsetispeed(&tty, speed);
 
-    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8; // 8-bit chars
     // disable IGNBRK for mismatched speed tests; otherwise receive break
     // as \000 chars
-    tty.c_iflag &= ~IGNBRK;         // disable break processing
-    tty.c_lflag = 0;                // no signaling chars, no echo,
-                                    // no canonical processing
+    tty.c_iflag &= ~IGNBRK;     // disable break processing
+    tty.c_lflag = 0;            // no signaling chars, no echo,
+    // no canonical processing
 
     /* no remapping, no delays */
     tty.c_oflag = 0;
 
     /* 0.5 sec read timeout */
-    tty.c_cc[VMIN]  = blocking ? 1 : 0;
+    tty.c_cc[VMIN] = blocking ? 1 : 0;
     tty.c_cc[VTIME] = 5;
 
     /* shut off xon/xoff ctrl */
@@ -68,7 +70,7 @@ int set_serial_config(int fd, int speed, int parity, int blocking)
     tty.c_cflag &= ~CSTOPB;
     tty.c_cflag &= ~CRTSCTS;
 
-    if (tcsetattr (fd, TCSANOW, &tty) != 0)
+    if (tcsetattr(fd, TCSANOW, &tty) != 0)
     {
         fprintf(stderr, "error %d from tcsetattr", errno);
         return -1;
@@ -80,11 +82,12 @@ int set_serial_config(int fd, int speed, int parity, int blocking)
 
 int read_data(int fd, struct xfr_buf *buffer)
 {
-    int type = PKT_TYPE_INCOMPLETE;
-    uint8_t *buf = buffer->data;
+    uint8_t        *buf = buffer->data;
+    int             type = PKT_TYPE_INCOMPLETE;
+    size_t          num;
 
     /* read data */
-    size_t num = read(fd, &buf[buffer->wridx], RDBUF_SIZE - buffer->wridx);
+    num = read(fd, &buf[buffer->wridx], RDBUF_SIZE - buffer->wridx);
 
     if (num > 0)
     {
@@ -102,7 +105,7 @@ int read_data(int fd, struct xfr_buf *buffer)
          */
         if (buf[0] == 0xFE)
         {
-            if (buf[buffer->wridx-1] == 0xFD)
+            if (buf[buffer->wridx - 1] == 0xFD)
                 type = buf[1];
             else
                 type = PKT_TYPE_INCOMPLETE;
@@ -134,26 +137,26 @@ int read_data(int fd, struct xfr_buf *buffer)
 
 int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
 {
-    int pkt_type;
+    int             pkt_type;
 
     pkt_type = read_data(ifd, buffer);
     switch (pkt_type)
     {
-        case PKT_TYPE_INCOMPLETE:
-            break;
+    case PKT_TYPE_INCOMPLETE:
+        break;
 
-        case PKT_TYPE_INVALID:
-            buffer->invalid_pkts++;
-            buffer->wridx = 0;
-            break;
+    case PKT_TYPE_INVALID:
+        buffer->invalid_pkts++;
+        buffer->wridx = 0;
+        break;
 
-        default:
+    default:
 #if DEBUG
-            print_buffer(ifd, ofd, buffer->data, buffer->wridx);
+        print_buffer(ifd, ofd, buffer->data, buffer->wridx);
 #endif
-            write(ofd, buffer->data, buffer->wridx);
-            buffer->wridx = 0;
-            buffer->valid_pkts++;
+        write(ofd, buffer->data, buffer->wridx);
+        buffer->wridx = 0;
+        buffer->valid_pkts++;
     }
 
     return pkt_type;

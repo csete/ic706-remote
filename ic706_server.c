@@ -22,9 +22,9 @@
 #include "common.h"
 
 
-static char *uart = NULL;       /* UART port */
-static int   port = 42000;      /* Network port */
-static int   keep_running = 1;  /* set to 0 to exit infinite loop */
+static char    *uart = NULL;    /* UART port */
+static int      port = 42000;   /* Network port */
+static int      keep_running = 1;       /* set to 0 to exit infinite loop */
 
 
 void signal_handler(int signo)
@@ -47,8 +47,7 @@ static void help(void)
         "\n"
         "  -p    Network port number (default is 42000).\n"
         "  -u    Uart port (default is /dev/ttyO1).\n"
-        "  -h    This help message.\n"
-        "\n";
+        "  -h    This help message.\n\n";
 
     fprintf(stderr, "%s", help_string);
 }
@@ -56,7 +55,7 @@ static void help(void)
 /* Parse command line options */
 static void parse_options(int argc, char **argv)
 {
-    int option;
+    int             option;
 
     if (argc > 1)
     {
@@ -88,17 +87,17 @@ static void parse_options(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    int    exit_code = EXIT_FAILURE;
-    int    sock_fd, net_fd, uart_fd;
+    int             exit_code = EXIT_FAILURE;
+    int             sock_fd, net_fd, uart_fd;
     struct sockaddr_in serv_addr, cli_addr;
-    socklen_t    cli_addr_len;
+    socklen_t       cli_addr_len;
 
-    struct timeval timeout;
-    fd_set active_fds, read_fds;
-    int    res = 0;
-    int    connected = 0;
+    struct timeval  timeout;
+    fd_set          active_fds, read_fds;
+    int             res = 0;
+    int             connected = 0;
 
-    struct xfr_buf uart_buf, net_buf;
+    struct xfr_buf  uart_buf, net_buf;
 
     /* initialize buffers */
     uart_buf.wridx = 0;
@@ -114,7 +113,7 @@ int main(int argc, char **argv)
         printf("Warning: Can't catch SIGINT\n");
     if (signal(SIGTERM, signal_handler) == SIG_ERR)
         printf("Warning: Can't catch SIGTERM\n");
-    
+
     parse_options(argc, argv);
     if (uart == NULL)
         uart = strdup("/dev/ttyO1");
@@ -126,7 +125,8 @@ int main(int argc, char **argv)
     uart_fd = open(uart, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (uart_fd == -1)
     {
-        fprintf(stderr, "Error opening UART: %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "Error opening UART: %d: %s\n", errno,
+                strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "bind() error: %d: %s\n", errno, strerror(errno));
         goto cleanup;
     }
- 
+
     if (listen(sock_fd, 1) == -1)
     {
         fprintf(stderr, "listen() error: %d: %s\n", errno, strerror(errno));
@@ -174,7 +174,7 @@ int main(int argc, char **argv)
     while (keep_running)
     {
         /* previous select may have altered timeout */
-        timeout.tv_sec  = SELECT_TIMEOUT_SEC;
+        timeout.tv_sec = SELECT_TIMEOUT_SEC;
         timeout.tv_usec = SELECT_TIMEOUT_USEC;
         read_fds = active_fds;
 
@@ -202,8 +202,8 @@ int main(int argc, char **argv)
         /* check if there are any new connections pending */
         if (FD_ISSET(sock_fd, &read_fds))
         {
-            int new = accept(sock_fd, (struct sockaddr *) &cli_addr,
-                             &cli_addr_len);
+            int             new = accept(sock_fd, (struct sockaddr *)&cli_addr,
+                                         &cli_addr_len);
 
             if (new == -1)
             {
@@ -236,7 +236,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "Shutting down...\n");
     exit_code = EXIT_SUCCESS;
 
-cleanup:
+  cleanup:
     close(uart_fd);
     close(net_fd);
     close(sock_fd);

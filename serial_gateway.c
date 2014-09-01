@@ -20,7 +20,7 @@
 #include "common.h"
 
 
-static int keep_running = 1;  /* set to 0 to exit infinite loop */
+static int      keep_running = 1;       /* set to 0 to exit infinite loop */
 void signal_handler(int signo)
 {
     if (signo == SIGINT)
@@ -37,13 +37,15 @@ void signal_handler(int signo)
 
 int main(int argc, char **argv)
 {
-    fd_set readfs;    /* file descriptor set */
-    int    maxfd;     /* maximum file desciptor used */
+    char           *panel_port = "/dev/ttyUSB0";
+    int             panel_fd;
+    fd_set          readfs;     /* file descriptor set */
+    int             maxfd;      /* maximum file desciptor used */
+    struct timeval  timeout;
+    int             res;
 
-    struct timeval timeout;
-    int res;
+    struct xfr_buf  radio_buf, panel_buf;
 
-    struct xfr_buf radio_buf, panel_buf;
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -52,24 +54,24 @@ int main(int argc, char **argv)
         printf("Warning: Can't catch SIGTERM\n");
 
     /* control panel */
-    char *panel_port = "/dev/ttyUSB0";
-    int panel_fd = open(panel_port, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    panel_fd = open(panel_port, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (panel_fd < 0)
     {
         fprintf(stderr, "error %d opening %s: %s", errno, panel_port,
-                strerror (errno));
+                strerror(errno));
         return 1;
     }
-      /* 19200 bps, 8n1, blocking */
+    /* 19200 bps, 8n1, blocking */
     set_serial_config(panel_fd, B19200, 0, 1);
 
     /* radio end */
-    char *radio_port = "/dev/ttyUSB1";
-    int radio_fd = open(radio_port, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    char           *radio_port = "/dev/ttyUSB1";
+    int             radio_fd =
+        open(radio_port, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (radio_fd < 0)
     {
         fprintf(stderr, "error %d opening %s: %s", errno, radio_port,
-                strerror (errno));
+                strerror(errno));
 
         goto closefds;
     }
@@ -89,10 +91,10 @@ int main(int argc, char **argv)
 
     while (keep_running)
     {
-        FD_SET(panel_fd, &readfs); /* set testing for source 1 */
-        FD_SET(radio_fd, &readfs); /* set testing for source 2 */
+        FD_SET(panel_fd, &readfs);      /* set testing for source 1 */
+        FD_SET(radio_fd, &readfs);      /* set testing for source 2 */
 
-        timeout.tv_sec  = SELECT_TIMEOUT_SEC;
+        timeout.tv_sec = SELECT_TIMEOUT_SEC;
         timeout.tv_usec = SELECT_TIMEOUT_USEC;
 
         /* block until input becomes available */
@@ -111,7 +113,7 @@ int main(int argc, char **argv)
     }
 
 
-closefds:
+  closefds:
     close(panel_fd);
     close(radio_fd);
 
