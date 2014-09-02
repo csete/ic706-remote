@@ -17,10 +17,6 @@
 /* Read buffer size */
 #define RDBUF_SIZE 512
 
-/* timeout for select calls */
-#define SELECT_TIMEOUT_SEC  1
-#define SELECT_TIMEOUT_USEC 0
-
 /* Amount of time in micorseconds we sleep in the main loop between cycles */
 #define LOOP_DELAY_US 1000
 
@@ -124,5 +120,7 @@ uint64_t        time_ms(void);
 
 /** Get current time in microseconds. */
 uint64_t        time_us(void);
+
+void            send_keepalive(int fd);
 
 #endif

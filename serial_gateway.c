@@ -94,8 +94,8 @@ int main(int argc, char **argv)
         FD_SET(panel_fd, &readfs);      /* set testing for source 1 */
         FD_SET(radio_fd, &readfs);      /* set testing for source 2 */
 
-        timeout.tv_sec = SELECT_TIMEOUT_SEC;
-        timeout.tv_usec = SELECT_TIMEOUT_USEC;
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
 
         /* block until input becomes available */
         res = select(maxfd, &readfs, NULL, NULL, &timeout);

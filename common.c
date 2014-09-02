@@ -143,6 +143,11 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
     pkt_type = read_data(ifd, buffer);
     switch (pkt_type)
     {
+    case PKT_TYPE_KEEPALIVE:
+        /* emulated on server side; do not forward */
+        buffer->wridx = 0;
+        buffer->valid_pkts++;
+
     case PKT_TYPE_INCOMPLETE:
         break;
 
@@ -181,4 +186,10 @@ uint64_t time_us(void)
     gettimeofday(&tval, NULL);
 
     return 1e6 * tval.tv_sec + tval.tv_usec;
+}
+
+void send_keepalive(int fd)
+{
+    char msg[] = { 0xFE, 0x0B, 0x00, 0xFD};
+    write(fd, msg, 4);
 }

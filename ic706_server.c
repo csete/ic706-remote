@@ -94,8 +94,12 @@ int main(int argc, char **argv)
 
     struct timeval  timeout;
     fd_set          active_fds, read_fds;
-    int             res = 0;
-    int             connected = 0;
+    int             res;
+    int             connected;
+    int             rig_is_on;
+
+    uint64_t        last_keepalive;
+    uint64_t        current_time;
 
     struct xfr_buf  uart_buf, net_buf;
 
@@ -171,11 +175,29 @@ int main(int argc, char **argv)
     FD_SET(uart_fd, &active_fds);
     FD_SET(sock_fd, &active_fds);
 
+    /* rig_is_on is set to 1 every time we receive a PKT_TYPE_LCD. While
+     * rig_is_on=1 a PKT_TYPE_KEEPALIVE is sent to the UART every 150 ms.
+     *
+     * rig_is_on is set to 0 again when we receive a PKT_TYPE_EOS from the
+     * UART.
+     */
+    rig_is_on = 0;
+    connected = 0;
+    last_keepalive = 0;
+
     while (keep_running)
     {
+        /* check if we should send a PKT_TYPE_KEEPALIVE to the UART */
+        current_time = time_ms();
+        if (rig_is_on && (current_time - last_keepalive) > 150)
+        {
+            send_keepalive(uart_fd);
+            last_keepalive = current_time;
+        }
+
         /* previous select may have altered timeout */
-        timeout.tv_sec = SELECT_TIMEOUT_SEC;
-        timeout.tv_usec = SELECT_TIMEOUT_USEC;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 50000;
         read_fds = active_fds;
 
         res = select(FD_SETSIZE, &read_fds, NULL, NULL, &timeout);
@@ -184,7 +206,20 @@ int main(int argc, char **argv)
 
         /* service UART port */
         if (FD_ISSET(uart_fd, &read_fds))
-            transfer_data(uart_fd, net_fd, &uart_buf);
+        {
+            switch (transfer_data(uart_fd, net_fd, &uart_buf))
+            {
+            case PKT_TYPE_INIT2:
+                rig_is_on = 1;
+                send_keepalive(uart_fd);
+                last_keepalive = current_time;
+                break;
+
+            case PKT_TYPE_EOS:
+                rig_is_on = 0;
+                break;
+            }
+        }
 
         /* service network socket */
         if (connected && FD_ISSET(net_fd, &read_fds))

@@ -198,8 +198,8 @@ int main(int argc, char **argv)
             FD_SET(uart_fd, &readfds);
 
             /* previous select may have altered timeout */
-            timeout.tv_sec = SELECT_TIMEOUT_SEC;
-            timeout.tv_usec = SELECT_TIMEOUT_USEC;
+            timeout.tv_sec = 1;
+            timeout.tv_usec = 0;
             res = select(maxfd, &readfds, NULL, NULL, &timeout);
 
             if (res <= 0)
