@@ -151,6 +151,12 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
+    int             yes = 1;
+
+    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+        fprintf(stderr, "Error setting SO_REUSEADDR: %d: %s\n", errno,
+                strerror(errno));
+
     /* bind socket to host address */
     memset(&serv_addr, 0, sizeof(struct sockaddr_in));
     serv_addr.sin_family = AF_INET;
