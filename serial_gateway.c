@@ -8,7 +8,7 @@
  */
 #include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>     // PRId64 and PRIu64
+#include <inttypes.h>           // PRId64 and PRIu64
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -118,9 +118,11 @@ int main(int argc, char **argv)
     close(panel_fd);
     close(radio_fd);
 
-    fprintf(stderr, "  Valid packets radio / panel: %" PRIu64 " / %" PRIu64 "\n",
+    fprintf(stderr,
+            "  Valid packets radio / panel: %" PRIu64 " / %" PRIu64 "\n",
             radio_buf.valid_pkts, panel_buf.valid_pkts);
-    fprintf(stderr, "Invalid packets radio / panel: %" PRIu64 " / %" PRIu64 "\n",
+    fprintf(stderr,
+            "Invalid packets radio / panel: %" PRIu64 " / %" PRIu64 "\n",
             radio_buf.invalid_pkts, panel_buf.invalid_pkts);
 
     return 0;

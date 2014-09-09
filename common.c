@@ -138,7 +138,7 @@ int read_data(int fd, struct xfr_buf *buffer)
 
 int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
 {
-    uint8_t         init_resp[] = { 0xFE, 0xF0, 0xFD, 0xFE, 0xF1, 0xFD};
+    uint8_t         init_resp[] = { 0xFE, 0xF0, 0xFD, 0xFE, 0xF1, 0xFD };
     int             pkt_type;
 
     pkt_type = read_data(ifd, buffer);
@@ -199,6 +199,6 @@ uint64_t time_us(void)
 
 void send_keepalive(int fd)
 {
-    char msg[] = { 0xFE, 0x0B, 0x00, 0xFD};
+    char            msg[] = { 0xFE, 0x0B, 0x00, 0xFD };
     write(fd, msg, 4);
 }
