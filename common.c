@@ -138,7 +138,8 @@ int read_data(int fd, struct xfr_buf *buffer)
 
 int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
 {
-    uint8_t         init_resp[] = { 0xFE, 0xF0, 0xFD, 0xFE, 0xF1, 0xFD };
+    uint8_t         init1_resp[] = { 0xFE, 0xF0, 0xFD };
+    uint8_t         init2_resp[] = { 0xFE, 0xF1, 0xFD };
     int             pkt_type;
 
     pkt_type = read_data(ifd, buffer);
@@ -150,9 +151,18 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
         buffer->valid_pkts++;
 
     case PKT_TYPE_INIT1:
-        /* Sent by radio or panel when powered on.
-           Expects PKT_TYPE_INIT1 + PKT_TYPE_INIT2 in response */
-        write(ifd, init_resp, 6);
+        /* Sent by the first unit that is powered on.
+           Expects PKT_TYPE_INIT1 + PKT_TYPE_INIT2 in response. */
+        write(ifd, init1_resp, 3);
+        write(ifd, init2_resp, 3);
+        buffer->wridx = 0;
+        buffer->valid_pkts++;
+        break;
+
+    case PKT_TYPE_INIT2:
+        /* Sent by the panel when powered on and the radio is already on.
+           Expects PKT_TYPE_INIT2 in response. */
+        write(ifd, init2_resp, 3);
         buffer->wridx = 0;
         buffer->valid_pkts++;
         break;
