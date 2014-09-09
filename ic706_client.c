@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>     // PRId64 and PRIu64
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
@@ -237,9 +238,9 @@ int main(int argc, char **argv)
     if (server_ip != NULL)
         free(server_ip);
 
-    fprintf(stderr, "  Valid packets uart / net: %6ld / %6ld\n",
+    fprintf(stderr, "  Valid packets uart / net: %" PRIu64 " / %" PRIu64 "\n",
             uart_buf.valid_pkts, net_buf.valid_pkts);
-    fprintf(stderr, "Invalid packets uart / net: %6ld / %6ld\n",
+    fprintf(stderr, "Invalid packets uart / net: %" PRIu64 " / %" PRIu64 "\n",
             uart_buf.invalid_pkts, net_buf.invalid_pkts);
 
     exit(exit_code);;
