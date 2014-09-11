@@ -253,6 +253,7 @@ int main(int argc, char **argv)
             if (FD_ISSET(uart_fd, &readfds))
                 transfer_data(uart_fd, net_fd, &uart_buf);
 
+            /* power button interrupts */
             if (FD_ISSET(pwk_fd, &exceptfds))
             {
                 char            ch;
