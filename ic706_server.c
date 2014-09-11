@@ -27,6 +27,9 @@ static char    *uart = NULL;    /* UART port */
 static int      port = 42000;   /* Network port */
 static int      keep_running = 1;       /* set to 0 to exit infinite loop */
 
+/* GPIO pin used to emulate PWK signal */
+#define  GPIO_PWK 20
+
 
 void signal_handler(int signo)
 {
@@ -99,6 +102,7 @@ int main(int argc, char **argv)
     int             connected;
     int             rig_is_on;
 
+    uint64_t        pwk_on_time;        /* time used when PWK line is activated */
     uint64_t        last_keepalive;
     uint64_t        current_time;
 
@@ -139,6 +143,14 @@ int main(int argc, char **argv)
     if (set_serial_config(uart_fd, B19200, 0, 1) == -1)
     {
         fprintf(stderr, "Error configuring UART: %d: %s\n", errno,
+                strerror(errno));
+        goto cleanup;
+    }
+
+    /* PWK signal to radio */
+    if (gpio_init_out(GPIO_PWK) == -1)
+    {
+        fprintf(stderr, "Error configuring PWK GPIO: %d: %s\n", errno,
                 strerror(errno));
         goto cleanup;
     }
@@ -187,10 +199,14 @@ int main(int argc, char **argv)
      *
      * rig_is_on is set to 0 again when we receive a PKT_TYPE_EOS from the
      * UART.
+     *
+     * rig_is_on is also used when we receive a power on/off message from the
+     * client.
      */
     rig_is_on = 0;
     connected = 0;
     last_keepalive = 0;
+    pwk_on_time = 0;
 
     while (keep_running)
     {
@@ -200,6 +216,13 @@ int main(int argc, char **argv)
         {
             send_keepalive(uart_fd);
             last_keepalive = current_time;
+        }
+
+        /* check if GPIO_PWK needs to be reset */
+        if (pwk_on_time && (current_time - pwk_on_time) > 500)
+        {
+            gpio_set_value(GPIO_PWK, 0);
+            pwk_on_time = 0;
         }
 
         /* previous select may have altered timeout */
@@ -231,13 +254,27 @@ int main(int argc, char **argv)
         /* service network socket */
         if (connected && FD_ISSET(net_fd, &read_fds))
         {
-            if (transfer_data(net_fd, uart_fd, &net_buf) == PKT_TYPE_EOF)
+            switch (transfer_data(net_fd, uart_fd, &net_buf))
             {
+            case PKT_TYPE_PWK:
+                /* power on/off message */
+                fprintf(stderr, "POWER: %s\n", net_buf.data[2] ? "on" : "off");
+
+                if (net_buf.data[2] != rig_is_on)
+                {
+                    /* Activate PWK line; will be reset by main loop */
+                    gpio_set_value(GPIO_PWK, 1);
+                    pwk_on_time = current_time;
+                }
+                break;
+
+            case PKT_TYPE_EOF:
                 fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
                 FD_CLR(net_fd, &active_fds);
                 close(net_fd);
                 net_fd = -1;
                 connected = 0;
+                break;
             }
         }
 

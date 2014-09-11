@@ -168,6 +168,15 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
         buffer->valid_pkts++;
         break;
 
+    case PKT_TYPE_PWK:
+        /* Power on/off message sent by panel; leave handling to server */
+#if DEBUG
+        print_buffer(ifd, ofd, buffer->data, buffer->wridx);
+#endif
+        buffer->wridx = 0;
+        buffer->valid_pkts++;
+        break;
+
     case PKT_TYPE_INCOMPLETE:
         break;
 
