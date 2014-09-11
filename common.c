@@ -7,6 +7,7 @@
  *
  */
 #include <errno.h>
+#include <fcntl.h>              /* O_WRONLY */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -211,4 +212,110 @@ void send_keepalive(int fd)
 {
     char            msg[] = { 0xFE, 0x0B, 0x00, 0xFD };
     write(fd, msg, 4);
+}
+
+void send_pwr_message(int fd, int poweron)
+{
+    char            msg[] = { 0xFE, 0xA0, 0x00, 0xFD };
+
+    if (poweron)
+        msg[2] = 0x01;
+
+    write(fd, msg, 4);
+}
+
+int pwk_init(void)
+{
+    int             fd;
+
+    /*  $ echo 7 > /sys/class/gpio/export */
+    fd = open("/sys/class/gpio/export", O_WRONLY);
+    if (fd < 0)
+        return -1;
+
+    write(fd, "7", 1);
+    close(fd);
+
+    /*  $ echo "in" > /sys/class/gpio/gpio7/direction */
+    fd = open("/sys/class/gpio/gpio7/direction", O_WRONLY);
+    if (fd < 0)
+        return -1;
+
+    write(fd, "in", 2);
+    close(fd);
+
+    /*  $ echo 1 > /sys/class/gpio/gpio7/active_low */
+    fd = open("/sys/class/gpio/gpio7/active_low", O_WRONLY);
+    if (fd < 0)
+        return -1;
+
+    write(fd, "1", 1);
+    close(fd);
+
+    /*  $ echo "both" > /sys/class/gpio/gpio7/edge  */
+    fd = open("/sys/class/gpio/gpio7/edge", O_WRONLY);
+    if (fd < 0)
+        return -1;
+
+    write(fd, "both", 4);
+    close(fd);
+
+    fd = open("/sys/class/gpio/gpio7/value", O_RDONLY);
+
+    return fd;
+}
+
+
+#define SYSFS_GPIO_DIR "/sys/class/gpio/"
+#define MAX_GPIO_BUF   100
+
+int gpio_init_out(unsigned int gpio)
+{
+    int             fd;
+    int             len;
+    char            buf[MAX_GPIO_BUF];
+
+    /* export GPIO */
+    fd = open(SYSFS_GPIO_DIR "export", O_WRONLY);
+    if (fd < 0)
+        return -1;
+
+    len = snprintf(buf, sizeof(buf), "%d", gpio);
+    write(fd, buf, len);
+    close(fd);
+
+    /* set direction to "out" */
+    snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "gpio%d/direction", gpio);
+    fd = open(buf, O_WRONLY);
+    if (fd < 0)
+        return -1;
+
+    write(fd, "out", 3);
+    close(fd);
+
+    /* intialize with a 0 */
+    if (gpio_set_value(20, 0) < 0)
+        return -1;
+
+    return 0;
+}
+
+int gpio_set_value(unsigned int gpio, unsigned int value)
+{
+    int             fd;
+    char            buf[MAX_GPIO_BUF];
+
+    snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "gpio%d/value", gpio);
+    fd = open(buf, O_WRONLY);
+    if (fd < 0)
+        return -1;
+
+    if (value == 1)
+        write(fd, "1", 1);
+    else
+        write(fd, "0", 1);
+
+    close(fd);
+
+    return 0;
 }

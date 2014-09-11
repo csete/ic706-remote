@@ -22,6 +22,8 @@
 
 #include "common.h"
 
+/* GPIO pin controlling panel power */
+#define  PANEL_PWR_PIN 20
 
 static char    *uart = NULL;    /* UART port */
 static char    *server_ip = NULL;       /* Server IP */
@@ -95,11 +97,12 @@ int main(int argc, char **argv)
     int             exit_code = EXIT_FAILURE;
     int             net_fd = -1;
     int             uart_fd;
+    int             pwk_fd;
     int             connected = 0;
+    int             poweron = 0;
     struct sockaddr_in serv_addr;
     struct xfr_buf  uart_buf, net_buf;
-    fd_set          readfds;
-    int             maxfd;
+    fd_set          readfds, exceptfds;
 
     struct timeval  timeout;
     int             res;
@@ -146,6 +149,30 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
+    /* power button input */
+    pwk_fd = pwk_init();
+    if (pwk_fd < 0)
+    {
+        fprintf(stderr, "Error configuring PWK GPIO: %d: %s\n", errno,
+                strerror(errno));
+        goto cleanup;
+    }
+    else
+    {
+        /* read the gpio now to prevent the first trig */
+        char            ch;
+
+        read(pwk_fd, &ch, 1);
+    }
+
+    /* Control panel power */
+    if (gpio_init_out(PANEL_PWR_PIN) == -1)
+    {
+        fprintf(stderr, "Error configuring panel GPIO: %d: %s\n", errno,
+                strerror(errno));
+        goto cleanup;
+    }
+
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(server_port);
@@ -155,6 +182,9 @@ int main(int argc, char **argv)
                 strerror(errno));
         goto cleanup;
     }
+
+    FD_ZERO(&readfds);
+    FD_ZERO(&exceptfds);
 
     while (keep_running)
     {
@@ -191,17 +221,17 @@ int main(int argc, char **argv)
         connected = 1;
         fprintf(stderr, "Connected...\n");
 
-        maxfd = (net_fd > uart_fd ? net_fd : uart_fd) + 1;
-
         while (keep_running && connected)
         {
+            /* FIXME: don't need to set this every time? */
             FD_SET(net_fd, &readfds);
             FD_SET(uart_fd, &readfds);
+            FD_SET(pwk_fd, &exceptfds);
 
             /* previous select may have altered timeout */
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
-            res = select(maxfd, &readfds, NULL, NULL, &timeout);
+            res = select(FD_SETSIZE, &readfds, NULL, &exceptfds, &timeout);
 
             if (res <= 0)
                 continue;
@@ -223,6 +253,23 @@ int main(int argc, char **argv)
             if (FD_ISSET(uart_fd, &readfds))
                 transfer_data(uart_fd, net_fd, &uart_buf);
 
+            if (FD_ISSET(pwk_fd, &exceptfds))
+            {
+                char            ch;
+
+                lseek(pwk_fd, 0, SEEK_SET);
+                read(pwk_fd, &ch, 1);
+                if (ch == '0')
+                {
+                    /* falling edge */
+                    poweron = !poweron;
+                    fprintf(stderr, "Power status: %d\n", poweron);
+                    gpio_set_value(PANEL_PWR_PIN, poweron);
+                    if (connected)
+                        send_pwr_message(net_fd, poweron);
+                }
+            }
+
             usleep(LOOP_DELAY_US);
         }
     }
@@ -233,6 +280,7 @@ int main(int argc, char **argv)
   cleanup:
     close(net_fd);
     close(uart_fd);
+    close(pwk_fd);
     if (uart != NULL)
         free(uart);
     if (server_ip != NULL)
@@ -243,5 +291,5 @@ int main(int argc, char **argv)
     fprintf(stderr, "Invalid packets uart / net: %" PRIu64 " / %" PRIu64 "\n",
             uart_buf.invalid_pkts, net_buf.invalid_pkts);
 
-    exit(exit_code);;
+    exit(exit_code);
 }

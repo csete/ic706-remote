@@ -67,6 +67,14 @@
 #define PKT_TYPE_UNKNOWN    0xFE
 #define PKT_TYPE_INVALID    0xFF
 
+/* Non-icom messages we introduced are starting at 0xA0 */
+/* Power on/off events:
+ * 0xFE 0xA0 0x01 0xFD -- turn power on
+ * 0xFE 0xA0 0x00 0xFD -- turn power off
+ */
+#define PKT_TYPE_PWK        0xA0
+
+
 /* convenience struct for data transfers */
 struct xfr_buf {
     uint8_t         data[RDBUF_SIZE];
@@ -107,7 +115,7 @@ int             read_data(int fd, struct xfr_buf *buffer);
  *               packets from the serial port.
  * @return The packet type that was read.
  *
- * \todo Some packet type are transfered, others are not
+ * @todo Some packet type are transfered, others are not
  */
 int             transfer_data(int ifd, int ofd, struct xfr_buf *buffer);
 
@@ -122,5 +130,54 @@ uint64_t        time_ms(void);
 uint64_t        time_us(void);
 
 void            send_keepalive(int fd);
+
+/**
+ * Send a PKT_TYPE_PWK message.
+ * @param fd The file descriptor to where the message should be sent.
+ * @param poweron The power status.
+ */
+void            send_pwr_message(int fd, int poweron);
+
+/**
+ * Initialize GPIO_7 used to sense PWK signal.
+ * @return A sysfs file descriptor for the GPIO or -1 in case of error.
+ *
+ * The GPIO is configured as an "active low" input and with interrupt trigger
+ * on both edges (to allow using the file desciptor in the select call). The
+ * setup corresponds to the following shell sequence:
+ *
+ *  $ echo 7 > /sys/class/gpio/export
+ *  $ echo "in" > /sys/class/gpio/gpio7/direction
+ *  $ echo 1 > /sys/class/gpio/gpio7/active_low
+ *  $ echo "both" > /sys/class/gpio/gpio7/edge
+ *
+ * Ref: https://www.kernel.org/doc/Documentation/gpio/sysfs.txt
+ */
+int             pwk_init(void);
+
+/**
+ * Initialize a GPIO for output.
+ * @param  gpio The number of the gpio to initialize
+ * @retval  0   Initialization was successfull
+ * @retval -1   An error occurred (errno is set)
+ *
+ * The initialization is performed using sysfs and corresponds to the
+ * following shell commands (using GPIO20 as example):
+ *
+ *  $ echo 20 > /sys/class/gpio/export
+ *  $ echo "out" > /sys/class/gpio/gpio20/direction
+ *  $ echo 1 > /sys/class/gpio/gpio20/value
+ *  $ echo 0 > /sys/class/gpio/gpio20/value
+ * 
+ */
+int             gpio_init_out(unsigned int gpio);
+
+/**
+ * Set GPIO value.
+ * @param  gpio The number of the GPIO to set (must be initialized).
+ * @retval  0   The operation was successful.
+ * @retval -1   An error occurred (errno is set).
+ */
+int             gpio_set_value(unsigned int gpio, unsigned int value);
 
 #endif
