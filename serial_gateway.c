@@ -34,18 +34,46 @@ void signal_handler(int signo)
     keep_running = 0;
 }
 
+int transfer_data_local(int ifd, int ofd, struct xfr_buf *buffer)
+{
+    int             pkt_type;
+
+    pkt_type = read_data(ifd, buffer);
+    switch (pkt_type)
+    {
+    case PKT_TYPE_INCOMPLETE:
+        break;
+
+    case PKT_TYPE_INVALID:
+        buffer->invalid_pkts++;
+        buffer->wridx = 0;
+        break;
+
+    default:
+        /* we also "send" on EOF packet because buffer may not be empty */
+#if DEBUG
+        print_buffer(ifd, ofd, buffer->data, buffer->wridx);
+#endif
+        write(ofd, buffer->data, buffer->wridx);
+        buffer->wridx = 0;
+        buffer->valid_pkts++;
+    }
+
+    return pkt_type;
+}
 
 
 int main(int argc, char **argv)
 {
-    char           *panel_port = "/dev/ttyUSB0";
-    int             panel_fd;
+    struct xfr_buf  radio_buf, panel_buf;
+    struct timeval  timeout;
     fd_set          readfs;     /* file descriptor set */
     int             maxfd;      /* maximum file desciptor used */
-    struct timeval  timeout;
     int             res;
-
-    struct xfr_buf  radio_buf, panel_buf;
+    int             radio_fd;
+    int             panel_fd;
+    char           *radio_port = "/dev/ttyUSB0";
+    char           *panel_port = "/dev/ttyUSB1";
 
 
     /* setup signal handler */
@@ -66,9 +94,7 @@ int main(int argc, char **argv)
     set_serial_config(panel_fd, B19200, 0, 1);
 
     /* radio end */
-    char           *radio_port = "/dev/ttyUSB1";
-    int             radio_fd =
-        open(radio_port, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    radio_fd = open(radio_port, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (radio_fd < 0)
     {
         fprintf(stderr, "error %d opening %s: %s", errno, radio_port,
@@ -98,16 +124,16 @@ int main(int argc, char **argv)
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
 
-        /* block until input becomes available */
+        /* block until input becomes available or timeout expires */
         res = select(maxfd, &readfs, NULL, NULL, &timeout);
 
         if (res > 0)
         {
             if (FD_ISSET(panel_fd, &readfs))
-                transfer_data(panel_fd, radio_fd, &panel_buf);
+                transfer_data_local(panel_fd, radio_fd, &panel_buf);
 
             if (FD_ISSET(radio_fd, &readfs))
-                transfer_data(radio_fd, panel_fd, &radio_buf);
+                transfer_data_local(radio_fd, panel_fd, &radio_buf);
         }
 
         usleep(LOOP_DELAY_US);
