@@ -261,12 +261,12 @@ int pwk_init(void)
     write(fd, "1", 1);
     close(fd);
 
-    /*  $ echo "both" > /sys/class/gpio/gpio7/edge  */
+    /*  $ echo "falling" > /sys/class/gpio/gpio7/edge  */
     fd = open("/sys/class/gpio/gpio7/edge", O_WRONLY);
     if (fd < 0)
         return -1;
 
-    write(fd, "both", 4);
+    write(fd, "falling", 7);
     close(fd);
 
     fd = open("/sys/class/gpio/gpio7/value", O_RDONLY);

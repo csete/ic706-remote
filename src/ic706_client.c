@@ -256,6 +256,8 @@ int main(int argc, char **argv)
             /* power button interrupts */
             if (FD_ISSET(pwk_fd, &exceptfds))
             {
+                /* FIXME: If pin is debounce filtered and we only trigger on
+                   one edge we don't really need to read the value */
                 char            ch;
 
                 lseek(pwk_fd, 0, SEEK_SET);
