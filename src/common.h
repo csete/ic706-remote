@@ -87,7 +87,7 @@ struct xfr_buf {
 #define SAMPLE_RATE       48000
 #define SAMPLE_SIZE       2
 #define CHANNELS          1
-#define FRAME_LENGTH      50  // milliseconds
+#define FRAME_LENGTH      50    // milliseconds
 #define FRAME_SIZE        (SAMPLE_RATE * SAMPLE_SIZE * CHANNELS * FRAME_LENGTH) / 1000
 #define AUDIO_BUF_SIZE    3*FRAME_SIZE
 struct audio_buf {

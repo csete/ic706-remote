@@ -91,7 +91,7 @@ int main(int argc, char **argv)
     int             connected;
 
     struct xfr_buf  net_in_buf;
-    struct audio_buf    abuf;
+    struct audio_buf abuf;
 
     net_in_buf.wridx = 0;
     net_in_buf.valid_pkts = 0;
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
     abuf.wridx = 0;
     abuf.bytes_read = 0;
     abuf.avg_read = 0;
-    audio_fd = 0; /* stdin */
+    audio_fd = 0;               /* stdin */
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -188,7 +188,7 @@ int main(int argc, char **argv)
         /* check if there are any new connections pending */
         if (poll_fds[1].revents & POLLIN)
         {
-            int             new;  /* FIXME: we can do it without 'new' */
+            int             new;        /* FIXME: we can do it without 'new' */
 
             new = accept(sock_fd, (struct sockaddr *)&cli_addr, &cli_addr_len);
             if (new == -1)
