@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -84,14 +84,12 @@ static void parse_options(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    struct sockaddr_in serv_addr;
+    struct xfr_buf  net_in_buf;
+    struct pollfd   poll_fds[1];
     int             exit_code = EXIT_FAILURE;
     int             net_fd = -1;
     int             connected = 0;
-    struct sockaddr_in serv_addr;
-    struct xfr_buf  net_in_buf;
-    fd_set          readfds;
-
-    struct timeval  timeout;
     int             res;
 
 
@@ -122,8 +120,6 @@ int main(int argc, char **argv)
                 strerror(errno));
         goto cleanup;
     }
-
-    FD_ZERO(&readfds);
 
     while (keep_running)
     {
@@ -157,24 +153,20 @@ int main(int argc, char **argv)
             }
         }
 
+        poll_fds[0].fd = net_fd;
+        poll_fds[0].events = POLLIN;
         connected = 1;
         fprintf(stderr, "Connected...\n");
 
         while (keep_running && connected)
         {
-            /* FIXME: don't need to set this every time? */
-            FD_SET(net_fd, &readfds);
-
-            /* previous select may have altered timeout */
-            timeout.tv_sec = 1;
-            timeout.tv_usec = 0;
-            res = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
+            res = poll(poll_fds, 1, 500);
 
             if (res <= 0)
                 continue;
 
             /* service network socket */
-            if (FD_ISSET(net_fd, &readfds))
+            if (poll_fds[0].revents & POLLIN)
             {
                 int             num;
 
@@ -186,10 +178,10 @@ int main(int argc, char **argv)
                 else if (num == 0)
                 {
                     fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
-                    FD_CLR(net_fd, &readfds);
                     close(net_fd);
                     net_fd = -1;
                     connected = 0;
+                    poll_fds[0].fd = -1;
                 }
                 else
                 {

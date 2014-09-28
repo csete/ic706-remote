@@ -15,11 +15,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include "common.h"
+
 
 static int      port = DEFAULT_AUDIO_PORT;      /* Network port */
 static int      keep_running = 1;       /* set to 0 to exit infinite loop */
@@ -81,21 +82,25 @@ static void parse_options(int argc, char **argv)
 int main(int argc, char **argv)
 {
     int             exit_code = EXIT_FAILURE;
-    int             sock_fd, net_fd;
+    int             sock_fd, audio_fd;
     struct sockaddr_in serv_addr, cli_addr;
     socklen_t       cli_addr_len;
 
-    struct timeval  timeout;
-    fd_set          active_fds, read_fds;
-    int             res;
+    struct pollfd   poll_fds[3];
+    int             num;
     int             connected;
 
     struct xfr_buf  net_in_buf;
+    struct audio_buf    abuf;
 
     net_in_buf.wridx = 0;
     net_in_buf.valid_pkts = 0;
     net_in_buf.invalid_pkts = 0;
 
+    abuf.wridx = 0;
+    abuf.bytes_read = 0;
+    abuf.avg_read = 0;
+    audio_fd = 0; /* stdin */
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -142,33 +147,37 @@ int main(int argc, char **argv)
     memset(&cli_addr, 0, sizeof(struct sockaddr_in));
     cli_addr_len = sizeof(cli_addr);
 
-    FD_ZERO(&active_fds);
-    FD_SET(sock_fd, &active_fds);
+    /* audio input */
+    poll_fds[0].fd = audio_fd;
+    poll_fds[0].events = POLLIN;
+
+    /* network socket (listening for connections) */
+    poll_fds[1].fd = sock_fd;
+    poll_fds[1].events = POLLIN;
+
+    /* networks socket to client (when connected)
+     * FIXME: we could use it to check when writing is wont block
+     */
+    poll_fds[2].fd = -1;
 
     connected = 0;
 
     while (keep_running)
     {
 
-        /* previous select may have altered timeout */
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        read_fds = active_fds;
-
-        res = select(FD_SETSIZE, &read_fds, NULL, NULL, &timeout);
-        if (res <= 0)
+        if (poll(poll_fds, 3, 500) < 0)
             continue;
 
         /* service network socket */
-        if (connected && FD_ISSET(net_fd, &read_fds))
+        if (connected && (poll_fds[2].revents & POLLIN))
         {
-            switch (read_data(net_fd, &net_in_buf))
+            switch (read_data(poll_fds[2].fd, &net_in_buf))
             {
             case PKT_TYPE_EOF:
-                fprintf(stderr, "Connection closed (FD=%d)\n", net_fd);
-                FD_CLR(net_fd, &active_fds);
-                close(net_fd);
-                net_fd = -1;
+                fprintf(stderr, "Connection closed (FD=%d)\n", poll_fds[2].fd);
+                close(poll_fds[2].fd);
+                poll_fds[2].fd = -1;
+                poll_fds[2].events = 0;
                 connected = 0;
                 break;
             }
@@ -177,9 +186,9 @@ int main(int argc, char **argv)
         }
 
         /* check if there are any new connections pending */
-        if (FD_ISSET(sock_fd, &read_fds))
+        if (poll_fds[1].revents & POLLIN)
         {
-            int             new;
+            int             new;  /* FIXME: we can do it without 'new' */
 
             new = accept(sock_fd, (struct sockaddr *)&cli_addr, &cli_addr_len);
             if (new == -1)
@@ -195,8 +204,9 @@ int main(int argc, char **argv)
             if (!connected)
             {
                 fprintf(stderr, "Connection accepted (FD=%d)\n", new);
-                net_fd = new;
-                FD_SET(net_fd, &active_fds);
+                poll_fds[2].fd = new;
+                poll_fds[2].events = POLLIN;
+
                 connected = 1;
             }
             else
@@ -204,6 +214,28 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Connection refused\n");
                 close(new);
             }
+        }
+
+        /* read data from audio FD */
+        if (poll_fds[0].revents & POLLIN)
+        {
+            num = read(audio_fd, &abuf.data[abuf.wridx], FRAME_SIZE);
+
+            if (num > 0)
+            {
+                abuf.wridx += num;
+                abuf.bytes_read += num;
+            }
+
+            if (abuf.wridx >= FRAME_SIZE)
+            {
+                if (connected)
+                    write(poll_fds[2].fd, abuf.data, abuf.wridx);
+
+                abuf.wridx = 0;
+            }
+            abuf.avg_read += num;
+            abuf.avg_read /= 2;
         }
 
         usleep(10000);
@@ -214,8 +246,11 @@ int main(int argc, char **argv)
     exit_code = EXIT_SUCCESS;
 
   cleanup:
-    close(net_fd);
-    close(sock_fd);
+    close(poll_fds[1].fd);
+    close(poll_fds[2].fd);
+
+    fprintf(stderr, "  Audio bytes: %" PRIu64 "\n", abuf.bytes_read);
+    fprintf(stderr, "  Average read: %" PRIu64 "\n", abuf.avg_read);
 
     exit(exit_code);
 }
