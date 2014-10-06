@@ -4,9 +4,9 @@ Following pipelines can be used to stream audio over UDP or TCP connection.
 
 Raw audio over TCP:
 
-gst-launch-1.0 -v alsasrc device="hw:3" ! audio/x-raw, format=\(string\)S16LE, channels=1, rate=48000 ! tcpserversink host=192.168.1.100 port=43000
+gst-launch-1.0 -v alsasrc device="hw:3" ! audio/x-raw, format=\(string\)S16LE, channels=1, rate=48000 ! tcpserversink host=localhost port=43000
 
-gst-launch-1.0 -v tcpclientsrc host=192.168.1.100 port=43000 ! audio/x-raw, format=\(string\)S16LE, channels=1, rate=48000 ! alsasink device-name="Generic"
+gst-launch-1.0 -v tcpclientsrc host=localhost port=43000 ! audio/x-raw, format=\(string\)S16LE, channels=1, rate=48000 ! alsasink device-name="Generic"
 
 
 
