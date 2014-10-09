@@ -21,7 +21,7 @@ echo "Audio device: $1"
 while true; do
     gst-launch-1.0 -v alsasrc device=$1 ! \
         audio/x-raw, format=\(string\)S16LE, channels=2, rate=48000 ! \
-        opusenc bandwidth=1102 bitrate=24000 audio=true frame-size=60 complexity=3 ! \
+        opusenc bandwidth=1101 bitrate=24000 audio=true frame-size=60 complexity=3 ! \
         rtpopuspay ! tcpserversink host=$host port=$2
 
     echo "Sleeping for 5 seconds..."
