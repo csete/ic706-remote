@@ -1,0 +1,16 @@
+[Unit]
+Description=IC-706 audio server
+After=network-online.target
+
+[Service]
+WorkingDirectory=/home/debian/bin
+ExecStart=/home/debian/bin/audio_server.sh DEVICE PORT
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=ic706
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
