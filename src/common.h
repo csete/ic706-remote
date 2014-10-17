@@ -15,7 +15,7 @@
 #define DEBUG 1
 
 /* Read buffer size */
-#define RDBUF_SIZE 512
+#define RDBUF_SIZE 2048
 
 /* Amount of time in micorseconds we sleep in the main loop between cycles */
 #define LOOP_DELAY_US 1000
