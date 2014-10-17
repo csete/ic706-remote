@@ -12,7 +12,7 @@
 #include <stdint.h>
 
 /* Use 1 = debug, 0 = release */
-#define DEBUG 1
+#define DEBUG 0
 
 /* Read buffer size */
 #define RDBUF_SIZE 2048
