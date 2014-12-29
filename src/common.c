@@ -21,7 +21,7 @@
 inline void print_buffer(int from, int to, const uint8_t * buf,
                          unsigned int len)
 {
-    int             i;
+    unsigned int    i;
 
     fprintf(stderr, "%d -> %d:", from, to);
 
