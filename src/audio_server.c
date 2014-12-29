@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, Alexandru Csete <oz9aec@gmail.com>
+ * Copyright (c) 2014, Alexandru Csete
  * All rights reserved.
  *
  * This software is licensed under the terms and conditions of the

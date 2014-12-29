@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2014, Alexandru Csete <oz9aec@gmail.com>
+ * Copyright (c) 2014, Alexandru Csete
  * All rights reserved.
  *
  * This software is licensed under the terms and conditions of the
  * Simplified BSD License. See license.txt for details.
  *
  */
-#ifndef AUDIO_UTIL_H
-#define AUDIO_UTIL_H 1
+#ifndef __AUDIO_UTIL_H__
+#define __AUDIO_UTIL_H__
 
 #include <portaudio.h>
 #include <stdint.h>
