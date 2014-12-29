@@ -6,98 +6,183 @@
  * Simplified BSD License. See license.txt for details.
  *
  */
-#include <alsa/asoundlib.h>
+#include <portaudio.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "audio_util.h"
 
 
-snd_pcm_t * create_pcm_input(const char * device)
+audio_t        *audio_init(int index)
 {
-    int err;
-    unsigned int rate;
-    snd_pcm_t *pcm;
-    snd_pcm_hw_params_t *hw_params;
+    audio_t        *audio;
+    PaError         error;
+    int             input_rate = 48000;
 
-    if (!device)
-        return NULL;
 
-    if ((err = snd_pcm_open(&pcm, device, SND_PCM_STREAM_CAPTURE, 0)) < 0)
+    error = Pa_Initialize();  /** FIXME: make it quiet */
+    if (error != paNoError)
     {
-        fprintf(stderr, "Cannot open audio device %s (%s)\n", device,
-                snd_strerror(err));
+        fprintf(stderr, "Error initializing audio %d: %s", error,
+                Pa_GetErrorText(error));
         return NULL;
     }
 
-    if ((err = snd_pcm_hw_params_malloc(&hw_params)) < 0)
-    {
-        fprintf(stderr, "Cannot allocate hardware parameters: %s\n",
-                snd_strerror(err));
-        snd_pcm_close(pcm);
+    audio = (audio_t *) malloc(sizeof(audio_t));
+    if (!audio)
         return NULL;
+
+    audio->frames_avg = 0;
+    audio->frames_tot = 0;
+
+    if (index < 0)
+    {
+        audio->input_param.device = Pa_GetDefaultInputDevice();
+        fprintf(stderr, "Audio device not specified. Default is %d\n",
+                audio->input_param.device);
     }
-             
-    if ((err = snd_pcm_hw_params_any(pcm, hw_params)) < 0)
+    else
     {
-        fprintf(stderr, "Cannot initialize hardware parameters: %s\n",
-                snd_strerror(err));
-        snd_pcm_hw_params_free(hw_params);
-        snd_pcm_close(pcm);
-        return NULL;
+        audio->input_param.device = index;
     }
 
-    if ((err = snd_pcm_hw_params_set_access(pcm, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0)
-    {
-        fprintf(stderr, "Cannot set access type: %s\n", snd_strerror(err));
-        snd_pcm_hw_params_free(hw_params);
-        snd_pcm_close(pcm);
-        return NULL;
-    }
+    audio->input_param.channelCount =
+        (audio->device_info->maxInputChannels == 1) ? 1 : 2;
+    fprintf(stderr, "Number of channels: %d\n",
+            audio->input_param.channelCount);
 
-    if ((err = snd_pcm_hw_params_set_format(pcm, hw_params, SND_PCM_FORMAT_S16_LE)) < 0)
-    {
-        fprintf(stderr, "Cannot set sample format: %s\n", snd_strerror(err));
-        snd_pcm_hw_params_free(hw_params);
-        snd_pcm_close(pcm);
-        return NULL;
-    }
+    audio->input_param.sampleFormat = paInt16;
+    audio->input_param.hostApiSpecificStreamInfo = NULL;
+    audio->input_param.suggestedLatency = 0.01f;        //audio->device_info->defaultLowInputLatency;
 
-    rate = 48000;
-    if ((err = snd_pcm_hw_params_set_rate_near(pcm, hw_params, &rate, 0)) < 0)
-    {
-        fprintf(stderr, "Cannot set sample rate: %s\n", snd_strerror(err));
-        snd_pcm_hw_params_free(hw_params);
-        snd_pcm_close(pcm);
-        return NULL;
-    }
-    fprintf(stderr, "Sample rate: %d\n", rate);
+    audio->device_info = Pa_GetDeviceInfo(audio->input_param.device);
+    fprintf(stderr, "Using audio device no. %d: %s\n",
+            audio->input_param.device, audio->device_info->name);
 
-    if ((err = snd_pcm_hw_params_set_channels(pcm, hw_params, 2)) < 0)
-    {
-        fprintf(stderr, "Cannot set channel count: %s\n", snd_strerror(err));
-        snd_pcm_hw_params_free(hw_params);
-        snd_pcm_close(pcm);
-        return NULL;
-    }
+    /** FIXME: check if sample rate is supproted */
+    if (input_rate == 0)
+        input_rate = audio->device_info->defaultSampleRate;
+    fprintf(stderr, "Sample rate: %d\n", input_rate);
 
-    if ((err = snd_pcm_hw_params(pcm, hw_params)) < 0)
+    fprintf(stderr, "Latencies (LH): %d  %.d\n",
+            (int)(1.e3 * audio->device_info->defaultLowInputLatency),
+            (int)(1.e3 * audio->device_info->defaultHighInputLatency));
+
+    error = Pa_OpenStream(&audio->stream, &audio->input_param, NULL,
+                          input_rate, paFramesPerBufferUnspecified,
+                          paClipOff | paDitherOff, NULL, NULL);
+    //audio_reader_cb, audio);
+
+    if (error != paNoError)
     {
-        fprintf(stderr, "Cannot set HW parameters: %s\n", snd_strerror(err));
-        snd_pcm_hw_params_free(hw_params);
-        snd_pcm_close(pcm);
+        fprintf(stderr, "Error opening audio stream %d (%s)\n", error,
+                Pa_GetErrorText(error));
+
+        free(audio);
         return NULL;
     }
 
-    snd_pcm_hw_params_free(hw_params);
+    fprintf(stderr, "Audio stream opened\n");
 
-    if ((err = snd_pcm_prepare(pcm)) < 0)
-    {
-        fprintf(stderr, "Cannot prepare audio interface for use: %s\n",
-                snd_strerror(err));
-        snd_pcm_close(pcm);
-        return NULL;
-    }
-
-    return pcm;
+    return audio;
 }
 
+
+int audio_close(audio_t * audio)
+{
+    PaError         error;
+
+    error = Pa_CloseStream(audio->stream);
+    if (error != paNoError)
+        fprintf(stderr, "Error closing audio stream %d: %s\n",
+                error, Pa_GetErrorText(error));
+    else
+        fprintf(stderr, "Stream closed\n");
+
+    Pa_Terminate();
+
+    free(audio);
+
+    return error;
+}
+
+int audio_start(audio_t * audio)
+{
+    PaError         error;
+
+    error = Pa_StartStream(audio->stream);
+    if (error != paNoError)
+        fprintf(stderr, "Error starting audio stream %d: %s\n",
+                error, Pa_GetErrorText(error));
+    else
+        fprintf(stderr, "Audio stream started\n");
+
+    return error;
+}
+
+int audio_stop(audio_t * audio)
+{
+    PaError         error = 0;
+
+    if (Pa_IsStreamActive(audio->stream))
+    {
+        error = Pa_StopStream(audio->stream);
+        if (error != paNoError)
+            fprintf(stderr, "Error stopping audio stream %d: %s\n",
+                    error, Pa_GetErrorText(error));
+        else
+            fprintf(stderr, "Audio stream stopped\n");
+    }
+    else
+    {
+        fprintf(stderr, "Audio stream not active\n");
+    }
+
+    return error;
+}
+
+int audio_list_devices(void)
+{
+    const PaDeviceInfo *dev_info;
+    PaError         error;
+    int             i, num_devices;
+
+
+    error = Pa_Initialize();  /** FIXME: make it quiet */
+    if (error != paNoError)
+    {
+        fprintf(stderr, "Error initializing audio %d: %s",
+                error, Pa_GetErrorText(error));
+        return 0;
+    }
+
+    num_devices = Pa_GetDeviceCount();
+    if (num_devices < 0)
+    {
+        fprintf(stderr, "ERROR: Pa_GetDeviceCount returned 0x%x\n",
+                num_devices);
+        Pa_Terminate();
+        return 0;
+    }
+
+    fprintf(stderr, "\nAvailable input devices:\n");
+    fprintf(stderr, " IDX  Ichan  Rate   Lat. (ms)  Name\n");
+    for (i = 0; i < num_devices; i++)
+    {
+        dev_info = Pa_GetDeviceInfo(i);
+
+        if (dev_info->maxInputChannels > 0)
+        {
+            fprintf(stderr, " %2d   %3d  %7.0f  %3.0f  %3.0f   %s\n",
+                    i, dev_info->maxInputChannels, dev_info->defaultSampleRate,
+                    1.e3 * dev_info->defaultLowInputLatency,
+                    1.e3 * dev_info->defaultHighInputLatency, dev_info->name);
+        }
+    }
+
+    fprintf(stderr, "\n");
+
+    Pa_Terminate();
+
+    return num_devices;
+}

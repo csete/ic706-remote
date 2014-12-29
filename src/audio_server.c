@@ -19,21 +19,23 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "audio_util.h"
 #include "common.h"
 
 
-static int      port = DEFAULT_AUDIO_PORT;      /* Network port */
-static int      keep_running = 1;       /* set to 0 to exit infinite loop */
+/* application state and config */
+struct app_data {
+    struct audio_data *audio;
+    int             device_index;       /* audio device index */
+    int             network_port;       /* network port number */
+};
 
+
+static int      keep_running = 1;       /* set to 0 to exit infinite loop */
 
 void signal_handler(int signo)
 {
-    if (signo == SIGINT)
-        fprintf(stderr, "\nCaught SIGINT\n");
-    else if (signo == SIGTERM)
-        fprintf(stderr, "\nCaught SIGTERM\n");
-    else
-        fprintf(stderr, "\nCaught signal: %d\n", signo);
+    fprintf(stderr, "\nCaught signal: %d\n", signo);
 
     keep_running = 0;
 }
@@ -44,25 +46,35 @@ static void help(void)
         "\n Usage: audio_server [options]\n"
         "\n Possible options are:\n"
         "\n"
-        "  -p    Network port number (default is 42001).\n"
-        "  -h    This help message.\n\n";
+        "  -d <num>    Audio device index (see -l).\n"
+        "  -l          List audio devices.\n"
+        "  -p <num>    Network port number (default is 42001).\n"
+        "  -h          This help message.\n\n";
 
     fprintf(stderr, "%s", help_string);
 }
 
 /* Parse command line options */
-static void parse_options(int argc, char **argv)
+static void parse_options(int argc, char **argv, struct app_data *app)
 {
     int             option;
 
     if (argc > 1)
     {
-        while ((option = getopt(argc, argv, "p:h")) != -1)
+        while ((option = getopt(argc, argv, "d:hlp:")) != -1)
         {
             switch (option)
             {
+            case 'd':
+                app->device_index = atoi(optarg);
+                break;
+
+            case 'l':
+                audio_list_devices();
+                exit(EXIT_SUCCESS);
+
             case 'p':
-                port = atoi(optarg);
+                app->network_port = atoi(optarg);
                 break;
 
             case 'h':
@@ -82,35 +94,32 @@ static void parse_options(int argc, char **argv)
 int main(int argc, char **argv)
 {
     int             exit_code = EXIT_FAILURE;
-    int             sock_fd, audio_fd;
+    int             sock_fd;
     struct sockaddr_in serv_addr, cli_addr;
     socklen_t       cli_addr_len;
 
     struct pollfd   poll_fds[3];
-    int             num;
     int             connected;
 
+    struct app_data app = {
+        .device_index = -1,
+        .network_port = DEFAULT_AUDIO_PORT,
+    };
+
     struct xfr_buf  net_in_buf;
-    struct audio_buf abuf;
 
     net_in_buf.wridx = 0;
     net_in_buf.valid_pkts = 0;
     net_in_buf.invalid_pkts = 0;
 
-    abuf.wridx = 0;
-    abuf.bytes_read = 0;
-    abuf.avg_read = 0;
-    audio_fd = 0;               /* stdin */
+    parse_options(argc, argv, &app);
+    fprintf(stderr, "Using network port %d\n", app.network_port);
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
         printf("Warning: Can't catch SIGINT\n");
     if (signal(SIGTERM, signal_handler) == SIG_ERR)
         printf("Warning: Can't catch SIGTERM\n");
-
-    parse_options(argc, argv);
-    fprintf(stderr, "Using network port %d\n", port);
-
 
     /* open and configure network interface */
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -131,7 +140,7 @@ int main(int argc, char **argv)
     memset(&serv_addr, 0, sizeof(struct sockaddr_in));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(port);
+    serv_addr.sin_port = htons(app.network_port);
     if (bind(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
     {
         fprintf(stderr, "bind() error: %d: %s\n", errno, strerror(errno));
@@ -148,7 +157,7 @@ int main(int argc, char **argv)
     cli_addr_len = sizeof(cli_addr);
 
     /* audio input */
-    poll_fds[0].fd = audio_fd;
+    poll_fds[0].fd = -1;
     poll_fds[0].events = POLLIN;
 
     /* network socket (listening for connections) */
@@ -219,23 +228,6 @@ int main(int argc, char **argv)
         /* read data from audio FD */
         if (poll_fds[0].revents & POLLIN)
         {
-            num = read(audio_fd, &abuf.data[abuf.wridx], FRAME_SIZE);
-
-            if (num > 0)
-            {
-                abuf.wridx += num;
-                abuf.bytes_read += num;
-            }
-
-            if (abuf.wridx >= FRAME_SIZE)
-            {
-                if (connected)
-                    write(poll_fds[2].fd, abuf.data, abuf.wridx);
-
-                abuf.wridx = 0;
-            }
-            abuf.avg_read += num;
-            abuf.avg_read /= 2;
         }
 
         usleep(10000);
@@ -249,8 +241,8 @@ int main(int argc, char **argv)
     close(poll_fds[1].fd);
     close(poll_fds[2].fd);
 
-    fprintf(stderr, "  Audio bytes: %" PRIu64 "\n", abuf.bytes_read);
-    fprintf(stderr, "  Average read: %" PRIu64 "\n", abuf.avg_read);
+    //fprintf(stderr, "  Audio bytes: %" PRIu64 "\n", abuf.bytes_read);
+    //fprintf(stderr, "  Average read: %" PRIu64 "\n", abuf.avg_read);
 
     exit(exit_code);
 }
