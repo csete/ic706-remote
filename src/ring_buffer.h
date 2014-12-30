@@ -120,8 +120,8 @@ static inline uint_fast32_t ring_buffer_size(ring_buffer_t * rb)
  * @param num  The the number of elements in the input buffer. Must be less
  *             than or equal to @ref rb->size.
  */
-static inline void ring_buffer_write(ring_buffer_t * rb,
-                                     unsigned char *src, uint_fast32_t num)
+static inline void ring_buffer_write(ring_buffer_t * rb, unsigned char *src,
+                                     uint_fast32_t num)
 {
     if (!num)
         return;
@@ -163,8 +163,8 @@ static inline void ring_buffer_write(ring_buffer_t * rb,
  * @param  num   The number of elements to read. Must be less than or equal to
  *               @ref rb->count.
  */
-static inline void ring_buffer_read(ring_buffer_t * rb,
-                                    unsigned char *dest, uint_fast32_t num)
+static inline void ring_buffer_read(ring_buffer_t * rb, unsigned char *dest,
+                                    uint_fast32_t num)
 {
     if (!num)
         return;
