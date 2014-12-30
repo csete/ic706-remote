@@ -25,7 +25,6 @@
 
 /* application state and config */
 struct app_data {
-    struct audio_data *audio;
     int             device_index;       /* audio device index */
     int             network_port;       /* network port number */
 };
@@ -98,8 +97,10 @@ int main(int argc, char **argv)
     struct sockaddr_in serv_addr, cli_addr;
     socklen_t       cli_addr_len;
 
-    struct pollfd   poll_fds[3];
+    struct pollfd   poll_fds[2];
     int             connected;
+
+    audio_t        *audio;
 
     struct app_data app = {
         .device_index = -1,
@@ -114,6 +115,11 @@ int main(int argc, char **argv)
 
     parse_options(argc, argv, &app);
     fprintf(stderr, "Using network port %d\n", app.network_port);
+
+    /* initialize audio subsystem */
+    audio = audio_init(app.device_index);
+    if (audio == NULL)
+        exit(EXIT_FAILURE);
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -156,38 +162,35 @@ int main(int argc, char **argv)
     memset(&cli_addr, 0, sizeof(struct sockaddr_in));
     cli_addr_len = sizeof(cli_addr);
 
-    /* audio input */
-    poll_fds[0].fd = -1;
-    poll_fds[0].events = POLLIN;
-
     /* network socket (listening for connections) */
-    poll_fds[1].fd = sock_fd;
-    poll_fds[1].events = POLLIN;
+    poll_fds[0].fd = sock_fd;
+    poll_fds[0].events = POLLIN;
 
     /* networks socket to client (when connected)
      * FIXME: we could use it to check when writing is wont block
      */
-    poll_fds[2].fd = -1;
+    poll_fds[1].fd = -1;
 
     connected = 0;
 
     while (keep_running)
     {
 
-        if (poll(poll_fds, 3, 500) < 0)
+        if (poll(poll_fds, 2, 10) < 0)
             continue;
 
         /* service network socket */
-        if (connected && (poll_fds[2].revents & POLLIN))
+        if (connected && (poll_fds[1].revents & POLLIN))
         {
-            switch (read_data(poll_fds[2].fd, &net_in_buf))
+            switch (read_data(poll_fds[1].fd, &net_in_buf))
             {
             case PKT_TYPE_EOF:
-                fprintf(stderr, "Connection closed (FD=%d)\n", poll_fds[2].fd);
-                close(poll_fds[2].fd);
-                poll_fds[2].fd = -1;
-                poll_fds[2].events = 0;
+                fprintf(stderr, "Connection closed (FD=%d)\n", poll_fds[1].fd);
+                close(poll_fds[1].fd);
+                poll_fds[1].fd = -1;
+                poll_fds[1].events = 0;
                 connected = 0;
+                audio_stop(audio);
                 break;
             }
 
@@ -195,11 +198,12 @@ int main(int argc, char **argv)
         }
 
         /* check if there are any new connections pending */
-        if (poll_fds[1].revents & POLLIN)
+        if (poll_fds[0].revents & POLLIN)
         {
             int             new;        /* FIXME: we can do it without 'new' */
 
-            new = accept(sock_fd, (struct sockaddr *)&cli_addr, &cli_addr_len);
+            new = accept(poll_fds[0].fd, (struct sockaddr *)&cli_addr,
+                         &cli_addr_len);
             if (new == -1)
             {
                 fprintf(stderr, "accept() error: %d: %s\n", errno,
@@ -213,10 +217,11 @@ int main(int argc, char **argv)
             if (!connected)
             {
                 fprintf(stderr, "Connection accepted (FD=%d)\n", new);
-                poll_fds[2].fd = new;
-                poll_fds[2].events = POLLIN;
+                poll_fds[1].fd = new;
+                poll_fds[1].events = POLLIN;
 
                 connected = 1;
+                audio_start(audio);
             }
             else
             {
@@ -225,12 +230,34 @@ int main(int argc, char **argv)
             }
         }
 
-        /* read data from audio FD */
-        if (poll_fds[0].revents & POLLIN)
+        /* process available audio data */
+        if (connected)
         {
+#define AUDIO_FRAMES 1920       // 40 msek: 48000 * 0.04
+#define AUDIO_BUFLEN 3840
+            uint8_t         buffer[AUDIO_BUFLEN];
+            uint32_t        frames_read;
+
+            /** FIXME: We should read all frames modulo encoder frame */
+            if (audio_frames_available(audio) < AUDIO_FRAMES)
+                continue;
+
+            frames_read = audio_get_frames(audio, buffer, AUDIO_FRAMES);
+
+            if (frames_read != AUDIO_FRAMES)
+            {
+                fprintf(stderr,
+                        "Error reading audio (got %d instead of %d frames)\n",
+                        frames_read, AUDIO_FRAMES);
+            }
+            else
+            {
+                if (write(poll_fds[1].fd, buffer, AUDIO_FRAMES * 2) < 0)
+                    fprintf(stderr, "Error writing audio to network socket\n");
+            }
+
         }
 
-        usleep(10000);
     }
 
 
@@ -238,8 +265,11 @@ int main(int argc, char **argv)
     exit_code = EXIT_SUCCESS;
 
   cleanup:
+    close(poll_fds[0].fd);
     close(poll_fds[1].fd);
-    close(poll_fds[2].fd);
+
+    audio_stop(audio);
+    audio_close(audio);
 
     //fprintf(stderr, "  Audio bytes: %" PRIu64 "\n", abuf.bytes_read);
     //fprintf(stderr, "  Average read: %" PRIu64 "\n", abuf.avg_read);
