@@ -69,6 +69,11 @@ audio_t        *audio_init(int index)
     if (!audio)
         return NULL;
 
+    audio->status_errors = 0;
+    audio->overflows = 0;
+    audio->frames_avg = 0;
+    audio->frames_tot = 0;
+
     if (index < 0)
     {
         audio->input_param.device = Pa_GetDefaultInputDevice();
@@ -81,14 +86,13 @@ audio_t        *audio_init(int index)
     }
 
     /** FIXME: ring buffer assumes 1 channel */
-    audio->input_param.channelCount =
-        (audio->device_info->maxInputChannels == 1) ? 1 : 2;
+    audio->input_param.channelCount = CHANNELS;
     fprintf(stderr, "Number of channels: %d\n",
             audio->input_param.channelCount);
 
     audio->input_param.sampleFormat = paInt16;
     audio->input_param.hostApiSpecificStreamInfo = NULL;
-    audio->input_param.suggestedLatency = 0.01f;        //audio->device_info->defaultLowInputLatency;
+    audio->input_param.suggestedLatency = 0.04f;        //audio->device_info->defaultLowInputLatency;
 
     audio->device_info = Pa_GetDeviceInfo(audio->input_param.device);
     fprintf(stderr, "Using audio device no. %d: %s\n",
