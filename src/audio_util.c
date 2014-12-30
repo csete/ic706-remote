@@ -17,7 +17,7 @@
 #define SAMPLE_RATE 48000
 #define CHANNELS    1
 #define FRAME_SIZE  2 * CHANNELS        /* 2 bytes / sample */
-#define BUFFER_LEN_SEC 0.1
+#define BUFFER_LEN_SEC 0.2
 #define BUFFER_SIZE (SAMPLE_RATE * FRAME_SIZE) * BUFFER_LEN_SEC
 
 
@@ -206,12 +206,14 @@ uint32_t audio_frames_available(audio_t * audio)
 uint32_t audio_get_frames(audio_t * audio, unsigned char *buffer,
                           uint32_t frames)
 {
-    if (ring_buffer_count(audio->rb) < frames)
-        frames = ring_buffer_count(audio->rb);
+    uint32_t frames_read = ring_buffer_count(audio->rb) / FRAME_SIZE;
 
-    ring_buffer_read(audio->rb, buffer, frames);
+    if (frames_read > frames)
+        frames_read = frames;
 
-    return frames;
+    ring_buffer_read(audio->rb, buffer, frames_read * FRAME_SIZE);
+
+    return frames_read;
 }
 
 
