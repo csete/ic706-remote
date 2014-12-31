@@ -164,7 +164,10 @@ int main(int argc, char **argv)
         /* read the gpio now to prevent the first trig */
         char            ch;
 
-        read(pwk_fd, &ch, 1);
+        if (read(pwk_fd, &ch, 1) == -1)
+            fprintf(stderr, "Error reading PWK: %d: %s\n",
+                    errno, strerror(errno));
+
     }
 
     /* Control panel power */
@@ -258,13 +261,18 @@ int main(int argc, char **argv)
             /* power button interrupts */
             if (FD_ISSET(pwk_fd, &exceptfds))
             {
-                /* FIXME: If pin is debounce filtered and we only trigger on
+                /* FIXME: If pin is debounce-filtered and we only trigger on
                    one edge we don't really need to read the value */
                 char            ch;
 
                 lseek(pwk_fd, 0, SEEK_SET);
-                read(pwk_fd, &ch, 1);
-                if (ch == '0')
+                if (read(pwk_fd, &ch, 1) == -1)
+                {
+                    fprintf(stderr,
+                            "Error reading PWK after button press %d (%s)\n",
+                            errno, strerror(errno));
+                }
+                else if (ch == '0')
                 {
                     /* falling edge */
                     poweron = !poweron;
