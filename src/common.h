@@ -78,8 +78,9 @@
 /* convenience struct for data transfers */
 struct xfr_buf {
     uint8_t         data[RDBUF_SIZE];
-    int             wridx;      /* next available write slot. */
-    uint64_t        valid_pkts; /* number of valid packets */
+    int             wridx;              /* next available write slot. */
+    uint32_t        write_errors;       /* write errors */
+    uint64_t        valid_pkts;         /* number of valid packets */
     uint64_t        invalid_pkts;       /* number of invalid packets */
 };
 

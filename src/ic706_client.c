@@ -110,9 +110,11 @@ int main(int argc, char **argv)
 
     /* initialize buffers */
     uart_buf.wridx = 0;
+    uart_buf.write_errors = 0;
     uart_buf.valid_pkts = 0;
     uart_buf.invalid_pkts = 0;
     net_buf.wridx = 0;
+    net_buf.write_errors = 0;
     net_buf.valid_pkts = 0;
     net_buf.invalid_pkts = 0;
 
@@ -293,6 +295,8 @@ int main(int argc, char **argv)
             uart_buf.valid_pkts, net_buf.valid_pkts);
     fprintf(stderr, "Invalid packets uart / net: %" PRIu64 " / %" PRIu64 "\n",
             uart_buf.invalid_pkts, net_buf.invalid_pkts);
+    fprintf(stderr, "   Write errors uart / net: %" PRIu32 " / %" PRIu32 "\n",
+            uart_buf.write_errors, net_buf.write_errors);
 
     exit(exit_code);
 }

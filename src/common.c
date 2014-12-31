@@ -199,8 +199,8 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
     case PKT_TYPE_INIT1:
         /* Sent by the first unit that is powered on.
            Expects PKT_TYPE_INIT1 + PKT_TYPE_INIT2 in response. */
-        write(ifd, init1_resp, 3);
-        write(ifd, init2_resp, 3);
+        buffer->write_errors += write(ifd, init1_resp, 3) != 3;
+        buffer->write_errors += write(ifd, init2_resp, 3) != 3;
         buffer->wridx = 0;
         buffer->valid_pkts++;
         break;
@@ -208,7 +208,7 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
     case PKT_TYPE_INIT2:
         /* Sent by the panel when powered on and the radio is already on.
            Expects PKT_TYPE_INIT2 in response. */
-        write(ifd, init2_resp, 3);
+        buffer->write_errors += write(ifd, init2_resp, 3);
         buffer->wridx = 0;
         buffer->valid_pkts++;
         break;
@@ -235,7 +235,9 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
 #if DEBUG
         print_buffer(ifd, ofd, buffer->data, buffer->wridx);
 #endif
-        write(ofd, buffer->data, buffer->wridx);
+        buffer->write_errors +=
+            write(ofd, buffer->data, buffer->wridx) != buffer->wridx;
+
         buffer->wridx = 0;
         buffer->valid_pkts++;
     }
@@ -265,6 +267,7 @@ uint64_t time_us(void)
 void send_keepalive(int fd)
 {
     char            msg[] = { 0xFE, 0x0B, 0x00, 0xFD };
+
     write(fd, msg, 4);
 }
 
@@ -281,13 +284,14 @@ void send_pwr_message(int fd, int poweron)
 int pwk_init(void)
 {
     int             fd;
+    int             wr_err = 0;
 
     /*  $ echo 7 > /sys/class/gpio/export */
     fd = open("/sys/class/gpio/export", O_WRONLY);
     if (fd < 0)
         return -1;
 
-    write(fd, "7", 1);
+    wr_err += write(fd, "7", 1) != 1;
     close(fd);
 
     /*  $ echo "in" > /sys/class/gpio/gpio7/direction */
@@ -295,7 +299,7 @@ int pwk_init(void)
     if (fd < 0)
         return -1;
 
-    write(fd, "in", 2);
+    wr_err += write(fd, "in", 2) != 2;
     close(fd);
 
     /*  $ echo 1 > /sys/class/gpio/gpio7/active_low */
@@ -303,7 +307,7 @@ int pwk_init(void)
     if (fd < 0)
         return -1;
 
-    write(fd, "1", 1);
+    wr_err += write(fd, "1", 1) != 1;
     close(fd);
 
     /*  $ echo "falling" > /sys/class/gpio/gpio7/edge  */
@@ -311,10 +315,13 @@ int pwk_init(void)
     if (fd < 0)
         return -1;
 
-    write(fd, "falling", 7);
+    wr_err += write(fd, "falling", 7) != 7;
     close(fd);
 
     fd = open("/sys/class/gpio/gpio7/value", O_RDONLY);
+
+    if (wr_err)
+        fprintf(stderr, "Write errors during PWK_INIT: %d\n", wr_err);
 
     return fd;
 }
@@ -327,6 +334,7 @@ int gpio_init_out(unsigned int gpio)
 {
     int             fd;
     int             len;
+    int             wr_err = 0;
     char            buf[MAX_GPIO_BUF];
 
     /* export GPIO */
@@ -335,7 +343,7 @@ int gpio_init_out(unsigned int gpio)
         return -1;
 
     len = snprintf(buf, sizeof(buf), "%d", gpio);
-    write(fd, buf, len);
+    wr_err += write(fd, buf, len) != len;
     close(fd);
 
     /* set direction to "out" */
@@ -344,12 +352,18 @@ int gpio_init_out(unsigned int gpio)
     if (fd < 0)
         return -1;
 
-    write(fd, "out", 3);
+    wr_err += write(fd, "out", 3) != 3;
     close(fd);
 
     /* intialize with a 0 */
     if (gpio_set_value(20, 0) < 0)
         return -1;
+
+    if (wr_err)
+    {
+        fprintf(stderr, "Write errors during GPIO init out: %d\n", wr_err);
+        return -1;
+    }
 
     return 0;
 }
@@ -357,6 +371,7 @@ int gpio_init_out(unsigned int gpio)
 int gpio_set_value(unsigned int gpio, unsigned int value)
 {
     int             fd;
+    int             wr_err = 0;
     char            buf[MAX_GPIO_BUF];
 
     snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "gpio%d/value", gpio);
@@ -365,11 +380,11 @@ int gpio_set_value(unsigned int gpio, unsigned int value)
         return -1;
 
     if (value == 1)
-        write(fd, "1", 1);
+        wr_err += write(fd, "1", 1) != 1;
     else
-        write(fd, "0", 1);
+        wr_err += write(fd, "0", 1) != 1;
 
     close(fd);
-
-    return 0;
+    
+    return -wr_err;
 }
