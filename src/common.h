@@ -138,7 +138,11 @@ uint64_t        time_ms(void);
 /** Get current time in microseconds. */
 uint64_t        time_us(void);
 
-void            send_keepalive(int fd);
+/**
+ * Send keep-alive messages to FD.
+ * \return 0 if the write was successful.
+ */
+int             send_keepalive(int fd);
 
 /**
  * Send a PKT_TYPE_PWK message.

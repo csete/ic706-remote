@@ -245,7 +245,7 @@ int main(int argc, char **argv)
             {
             case PKT_TYPE_INIT2:
                 rig_is_on = 1;
-                send_keepalive(uart_fd);
+                uart_buf.write_errors += send_keepalive(uart_fd);
                 last_keepalive = current_time;
                 break;
 

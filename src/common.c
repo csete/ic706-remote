@@ -264,11 +264,11 @@ uint64_t time_us(void)
     return 1e6 * tval.tv_sec + tval.tv_usec;
 }
 
-void send_keepalive(int fd)
+int send_keepalive(int fd)
 {
     char            msg[] = { 0xFE, 0x0B, 0x00, 0xFD };
 
-    write(fd, msg, 4);
+    return (write(fd, msg, 4) != 4);
 }
 
 void send_pwr_message(int fd, int poweron)
@@ -278,7 +278,9 @@ void send_pwr_message(int fd, int poweron)
     if (poweron)
         msg[2] = 0x01;
 
-    write(fd, msg, 4);
+    if (write(fd, msg, 4) == -1)
+        fprintf(stderr, "Error sending PWR message %d (%s)\n", errno,
+                strerror(errno));
 }
 
 int pwk_init(void)
