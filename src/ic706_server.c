@@ -92,7 +92,9 @@ static void parse_options(int argc, char **argv)
 int main(int argc, char **argv)
 {
     int             exit_code = EXIT_FAILURE;
-    int             sock_fd, net_fd, uart_fd;
+    int             sock_fd = -1;
+    int             net_fd = -1;
+    int             uart_fd = -1;
     struct sockaddr_in serv_addr, cli_addr;
     socklen_t       cli_addr_len;
 

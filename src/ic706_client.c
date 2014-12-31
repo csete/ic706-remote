@@ -96,8 +96,8 @@ int main(int argc, char **argv)
 {
     int             exit_code = EXIT_FAILURE;
     int             net_fd = -1;
-    int             uart_fd;
-    int             pwk_fd;
+    int             uart_fd = -1;
+    int             pwk_fd = -1;
     int             connected = 0;
     int             poweron = 0;
     struct sockaddr_in serv_addr;
