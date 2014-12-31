@@ -83,21 +83,6 @@ struct xfr_buf {
     uint64_t        invalid_pkts;       /* number of invalid packets */
 };
 
-/* convenience data for audio tranfers */
-#define SAMPLE_RATE       48000
-#define SAMPLE_SIZE       2
-#define CHANNELS          1
-#define FRAME_LENGTH      50    // milliseconds
-#define FRAME_SIZE        (SAMPLE_RATE * SAMPLE_SIZE * CHANNELS * FRAME_LENGTH) / 1000
-#define AUDIO_BUF_SIZE    3*FRAME_SIZE
-struct audio_buf {
-    uint8_t         data[AUDIO_BUF_SIZE];
-    int             wridx;      /* next available write slot. */
-    uint64_t        bytes_read; /* number of bytes read */
-    uint64_t        avg_read;
-};
-
-
 /**
  * Create a server socket.
  * @param port  The network port to listen on.
