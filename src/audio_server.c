@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/poll.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include "audio_util.h"
@@ -94,7 +93,7 @@ int main(int argc, char **argv)
 {
     int             exit_code = EXIT_FAILURE;
     int             sock_fd;
-    struct sockaddr_in serv_addr, cli_addr;
+    struct sockaddr_in cli_addr;
     socklen_t       cli_addr_len;
 
     struct pollfd   poll_fds[2];
@@ -127,50 +126,17 @@ int main(int argc, char **argv)
     if (signal(SIGTERM, signal_handler) == SIG_ERR)
         printf("Warning: Can't catch SIGTERM\n");
 
-    /* open and configure network interface */
-    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_fd == -1)
-    {
-        fprintf(stderr, "Error creating socket: %d: %s\n", errno,
-                strerror(errno));
-        goto cleanup;
-    }
-
-    int             yes = 1;
-
-    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
-        fprintf(stderr, "Error setting SO_REUSEADDR: %d: %s\n", errno,
-                strerror(errno));
-
-    /* bind socket to host address */
-    memset(&serv_addr, 0, sizeof(struct sockaddr_in));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(app.network_port);
-    if (bind(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-    {
-        fprintf(stderr, "bind() error: %d: %s\n", errno, strerror(errno));
-        goto cleanup;
-    }
-
-    if (listen(sock_fd, 1) == -1)
-    {
-        fprintf(stderr, "listen() error: %d: %s\n", errno, strerror(errno));
-        goto cleanup;
-    }
-
-    memset(&cli_addr, 0, sizeof(struct sockaddr_in));
-    cli_addr_len = sizeof(cli_addr);
-
     /* network socket (listening for connections) */
+    sock_fd = create_server_socket(app.network_port);
     poll_fds[0].fd = sock_fd;
     poll_fds[0].events = POLLIN;
 
-    /* networks socket to client (when connected)
+    /* network socket to client (when connected)
      * FIXME: we could use it to check when writing is wont block
      */
     poll_fds[1].fd = -1;
-
+    memset(&cli_addr, 0, sizeof(struct sockaddr_in));
+    cli_addr_len = sizeof(cli_addr);
     connected = 0;
 
     while (keep_running)

@@ -6,11 +6,13 @@
  * Simplified BSD License. See license.txt for details.
  *
  */
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>              /* O_WRONLY */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
@@ -81,6 +83,49 @@ int set_serial_config(int fd, int speed, int parity, int blocking)
     return 0;
 }
 
+
+int create_server_socket(int port)
+{
+    struct sockaddr_in serv_addr;
+    int             sock_fd = -1;
+    int             yes = 1;
+
+    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock_fd == -1)
+    {
+        fprintf(stderr, "Error creating socket: %d: %s\n", errno,
+                strerror(errno));
+
+        return -1;
+    }
+
+    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+        fprintf(stderr, "Error setting SO_REUSEADDR: %d: %s\n", errno,
+                strerror(errno));
+
+    /* bind socket to host address */
+    memset(&serv_addr, 0, sizeof(struct sockaddr_in));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = htons(port);
+    if (bind(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
+    {
+        fprintf(stderr, "bind() error: %d: %s\n", errno, strerror(errno));
+
+        close(sock_fd);
+        return -1;
+    }
+
+    if (listen(sock_fd, 1) == -1)
+    {
+        fprintf(stderr, "listen() error: %d: %s\n", errno, strerror(errno));
+
+        close(sock_fd);
+        return -1;
+    }
+
+    return sock_fd;
+}
 
 int read_data(int fd, struct xfr_buf *buffer)
 {

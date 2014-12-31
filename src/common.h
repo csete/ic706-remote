@@ -98,6 +98,14 @@ struct audio_buf {
 };
 
 
+/**
+ * Create a server socket.
+ * @param port  The network port to listen on.
+ * @return      The file descriptor of the wserver socket or -1 if an error
+ *              occured during the setup.
+ */
+int             create_server_socket(int port);
+
 /** Read data from file descriptor.
  *  @param  fd      The file descriptor.
  *  @param  buffer  Pointer to the serial_buffer structure to use.
