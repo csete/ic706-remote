@@ -109,6 +109,7 @@ int main(int argc, char **argv)
     struct xfr_buf  net_in_buf;
 
     net_in_buf.wridx = 0;
+    net_in_buf.write_errors = 0;
     net_in_buf.valid_pkts = 0;
     net_in_buf.invalid_pkts = 0;
 
@@ -225,7 +226,6 @@ int main(int argc, char **argv)
         }
 
     }
-
 
     fprintf(stderr, "Shutting down...\n");
     exit_code = EXIT_SUCCESS;
