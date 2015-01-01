@@ -19,20 +19,21 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "audio_util.h"
 #include "common.h"
 
-static char    *server_ip = NULL;       /* Server IP */
-static int      server_port = 42001;    /* Network port */
+/* application state and config */
+struct app_data {
+    int             device_index;       /* audio device index */
+    int             server_port;        /* network port number */
+    char           *server_ip;
+};
+
 static int      keep_running = 1;       /* set to 0 to exit infinite loop */
 
 void signal_handler(int signo)
 {
-    if (signo == SIGINT)
-        fprintf(stderr, "\nCaught SIGINT\n");
-    else if (signo == SIGTERM)
-        fprintf(stderr, "\nCaught SIGTERM\n");
-    else
-        fprintf(stderr, "\nCaught signal: %d\n", signo);
+    fprintf(stderr, "\nCaught signal: %d\n", signo);
 
     keep_running = 0;
 }
@@ -42,30 +43,40 @@ static void help(void)
     static const char help_string[] =
         "\n Usage: audio_client [options]\n"
         "\n Possible options are:\n\n"
-        "  -s    Server IP (default is 127.0.0.1).\n"
-        "  -p    Network port number (default is 42001).\n"
-        "  -h    This help message.\n\n";
+        "  -d <num>    Audio device index (see -l).\n"
+        "  -l          List audio devices.\n"
+        "  -s <str>    Server IP (default is 127.0.0.1).\n"
+        "  -p <num>    Network port number (default is 42001).\n"
+        "  -h          This help message.\n\n";
 
     fprintf(stderr, "%s", help_string);
 }
 
 /* Parse command line options */
-static void parse_options(int argc, char **argv)
+static void parse_options(int argc, char **argv, struct app_data *app)
 {
     int             option;
 
     if (argc > 1)
     {
-        while ((option = getopt(argc, argv, "s:p:u:h")) != -1)
+        while ((option = getopt(argc, argv, "d:ls:p:h")) != -1)
         {
             switch (option)
             {
+            case 'd':
+                app->device_index = atoi(optarg);
+                break;
+
+            case 'l':
+                audio_list_devices();
+                exit(EXIT_SUCCESS);
+
             case 's':
-                server_ip = strdup(optarg);
+                app->server_ip = strdup(optarg);
                 break;
 
             case 'p':
-                server_port = atoi(optarg);
+                app->server_port = atoi(optarg);
                 break;
 
             case 'h':
@@ -85,18 +96,23 @@ static void parse_options(int argc, char **argv)
 int main(int argc, char **argv)
 {
     struct sockaddr_in serv_addr;
-    struct xfr_buf  net_in_buf;
     struct pollfd   poll_fds[1];
     int             exit_code = EXIT_FAILURE;
     int             net_fd = -1;
     int             connected = 0;
     int             res;
 
+    struct app_data app = {
+        .device_index = -1,
+        .server_port = DEFAULT_AUDIO_PORT,
+    };
 
-    /* initialize buffers */
-    net_in_buf.wridx = 0;
-    net_in_buf.valid_pkts = 0;
-    net_in_buf.invalid_pkts = 0;
+    struct xfr_buf  net_in_buf = {
+        .wridx = 0,
+        .write_errors = 0,
+        .valid_pkts = 0,
+        .invalid_pkts = 0,
+    };
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -104,17 +120,17 @@ int main(int argc, char **argv)
     if (signal(SIGTERM, signal_handler) == SIG_ERR)
         printf("Warning: Can't catch SIGTERM\n");
 
-    parse_options(argc, argv);
-    if (server_ip == NULL)
-        server_ip = strdup("127.0.0.1");
+    parse_options(argc, argv, &app);
+    if (app.server_ip == NULL)
+        app.server_ip = strdup("127.0.0.1");
 
-    fprintf(stderr, "Using server IP %s\n", server_ip);
-    fprintf(stderr, "using server port %d\n", server_port);
+    fprintf(stderr, "Using server IP %s\n", app.server_ip);
+    fprintf(stderr, "using server port %d\n", app.server_port);
 
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(server_port);
-    if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) == -1)
+    serv_addr.sin_port = htons(app.server_port);
+    if (inet_pton(AF_INET, app.server_ip, &serv_addr.sin_addr) == -1)
     {
         fprintf(stderr, "Error calling inet_pton(): %d: %s\n", errno,
                 strerror(errno));
@@ -199,8 +215,8 @@ int main(int argc, char **argv)
 
   cleanup:
     close(net_fd);
-    if (server_ip != NULL)
-        free(server_ip);
+    if (app.server_ip != NULL)
+        free(app.server_ip);
 
     fprintf(stderr, "  Valid packets net: %" PRIu64 "\n",
             net_in_buf.valid_pkts);
