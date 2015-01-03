@@ -20,34 +20,50 @@
  * @stream          Audio stream handle.
  * @device_info     Audio device info.
  * @input_param     Input parameters.
- * @rb              Ring buffer for storing audio data.
- * @status_errors   Status errors received in the callback function.
- * @overflows       Number of times we wrote while buffer was already full.
- * @frames_avg      Average number of frames received per period.
+ * @rxb             Ring buffer for storing incoming audio data.
+ * @txb             Ring buffer for storing outgoing audio data.
  * @frames_tot      Total number of frames received.
+ * @frames_avg      Average number of frames received per period.
+ * @status_errors   Status errors received in the callback function.
+ * @overflows       Number of times we wrote incoming audio data into a full
+ *                  buffer
+ * @underflows      Number of times audio output requested more frames than we
+ *                  had in the buffer.
+ * @conf            Audio configuration flags (input, output duplex).
  */
 struct audio_data {
     PaStream       *stream;
     const PaDeviceInfo *device_info;
     PaStreamParameters input_param;
 
-    ring_buffer_t  *rb;
+    ring_buffer_t  *rxb;
+    ring_buffer_t  *txb;
 
+    uint64_t        frames_tot;
+    uint32_t        frames_avg;
     uint32_t        status_errors;
     uint32_t        overflows;
-    uint32_t        frames_avg;
-    uint64_t        frames_tot;
+    uint32_t        underflows;
+    uint8_t         conf;
 };
 
 typedef struct audio_data audio_t;
 
+#define AUDIO_CONF_INPUT    0x01
+#define AUDIO_CONF_OUTPUT   0x02
+#define AUDIO_CONF_DUPLEX   0x03
+
 /**
  * Initialize audio backend.
  * @param   index   The index of the audio device to initialize.
+ * @param   conf    Audio configuration, see AUDIO_CONF_xyz.
  * @return  Pointer to the audio handle to be used for subsequent API calls.
- * @sa audio_list_devices()
+ * @sa      audio_list_devices()
+ * @note    If audio is initialized for both input and output, it will run in
+ *          full duplex mode, i.e. the callback will both read and write
+ *          samples in the same call.
  */
-audio_t        *audio_init(int index);
+audio_t        *audio_init(int index, uint8_t conf);
 
 /**
  * Close audio stream and terminate portaudio session.
@@ -57,7 +73,7 @@ audio_t        *audio_init(int index);
 int             audio_close(audio_t * audio);
 
 /**
- * Start audio stream.
+ * Start audio stream for reading.
  * @param audio The audio handle.
  * @return  The error code returned by portaudio (0 means OK).
  */
@@ -87,8 +103,18 @@ uint32_t        audio_frames_available(audio_t * audio);
  * @param   frames    The number of frames to copy.
  * @return  The umber of frames actually copied to the buffer.
  */
-uint32_t        audio_get_frames(audio_t * audio, unsigned char *buffer,
-                                 uint32_t frames);
+uint32_t        audio_read_frames(audio_t * audio, unsigned char *buffer,
+                                  uint32_t frames);
+
+/**
+ * Write audio frames
+ * @param   audio   Pointer to the audio handle.
+ * @param   buffer  Pointer to the buffer containing the frames to write.
+ * @param   frames  The number of frames to write.
+ */
+void            audio_write_frames(audio_t * audio, uint8_t * buffer,
+                                   uint32_t frames);
+
 /**
  * List available audio devices.
  * 

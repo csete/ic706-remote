@@ -117,7 +117,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "Using network port %d\n", app.network_port);
 
     /* initialize audio subsystem */
-    audio = audio_init(app.device_index);
+    audio = audio_init(app.device_index, AUDIO_CONF_INPUT);
     if (audio == NULL)
         exit(EXIT_FAILURE);
 
@@ -209,7 +209,7 @@ int main(int argc, char **argv)
             if (audio_frames_available(audio) < AUDIO_FRAMES)
                 continue;
 
-            frames_read = audio_get_frames(audio, buffer, AUDIO_FRAMES);
+            frames_read = audio_read_frames(audio, buffer, AUDIO_FRAMES);
 
             if (frames_read != AUDIO_FRAMES)
             {

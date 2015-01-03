@@ -32,11 +32,13 @@ int audio_reader_cb(const void *input, void *output, unsigned long frame_cnt,
     PaStreamCallbackResult result = paContinue;
     unsigned long   byte_cnt = frame_cnt * FRAME_SIZE;
 
-    if (byte_cnt + ring_buffer_count(audio->rb) > ring_buffer_size(audio->rb))
+    if (byte_cnt + ring_buffer_count(audio->rxb) >
+        ring_buffer_size(audio->rxb))
+    {
         audio->overflows++;
+    }
 
-    ring_buffer_write(audio->rb, (unsigned char *)input, byte_cnt);
-
+    ring_buffer_write(audio->rxb, (unsigned char *)input, byte_cnt);
     audio->frames_tot += frame_cnt;
 
     if (audio->frames_avg)
@@ -50,12 +52,53 @@ int audio_reader_cb(const void *input, void *output, unsigned long frame_cnt,
     return result;
 }
 
-audio_t        *audio_init(int index)
+
+int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
+                    const PaStreamCallbackTimeInfo * timeInfo,
+                    PaStreamCallbackFlags statusFlags, void *user_data)
+{
+    (void)input;
+    (void)output;
+    (void)timeInfo;
+
+    audio_t        *audio = (audio_t *) user_data;
+    PaStreamCallbackResult result = paContinue;
+    unsigned long   byte_cnt = frame_cnt * FRAME_SIZE;
+
+    if (byte_cnt > ring_buffer_count(audio->rxb))
+    {
+        memset(output, 0, frame_cnt);
+        audio->underflows++;
+    }
+    else
+    {
+        ring_buffer_read(audio->txb, (unsigned char *)output, byte_cnt);
+        audio->frames_tot += frame_cnt;
+    }
+
+    if (audio->frames_avg)
+        audio->frames_avg = (audio->frames_avg + frame_cnt) / 2;
+    else
+        audio->frames_avg = frame_cnt;
+
+    if (statusFlags)
+        audio->status_errors++;
+
+    return result;
+}
+
+
+audio_t        *audio_init(int index, uint8_t conf)
 {
     audio_t        *audio;
     PaError         error;
     int             input_rate = SAMPLE_RATE;
 
+    if ((conf != AUDIO_CONF_INPUT) && (conf != AUDIO_CONF_OUTPUT))
+    {
+        fprintf(stderr, "%s: conf %d not implemented\n", __func__, conf);
+        return NULL;
+    }
 
     error = Pa_Initialize();  /** FIXME: make it quiet */
     if (error != paNoError)
@@ -69,10 +112,12 @@ audio_t        *audio_init(int index)
     if (!audio)
         return NULL;
 
+    audio->frames_tot = 0;
+    audio->frames_avg = 0;
     audio->status_errors = 0;
     audio->overflows = 0;
-    audio->frames_avg = 0;
-    audio->frames_tot = 0;
+    audio->underflows = 0;
+    audio->conf = conf;
 
     if (index < 0)
     {
@@ -107,9 +152,26 @@ audio_t        *audio_init(int index)
             (int)(1.e3 * audio->device_info->defaultLowInputLatency),
             (int)(1.e3 * audio->device_info->defaultHighInputLatency));
 
-    error = Pa_OpenStream(&audio->stream, &audio->input_param, NULL,
-                          input_rate, paFramesPerBufferUnspecified,
-                          paClipOff | paDitherOff, audio_reader_cb, audio);
+    switch (conf)
+    {
+    case AUDIO_CONF_INPUT:
+        error = Pa_OpenStream(&audio->stream, &audio->input_param, NULL,
+                              input_rate, paFramesPerBufferUnspecified,
+                              paClipOff | paDitherOff, audio_reader_cb, audio);
+        break;
+
+    case AUDIO_CONF_OUTPUT:
+        error = Pa_OpenStream(&audio->stream, NULL, &audio->input_param,
+                              input_rate, paFramesPerBufferUnspecified,
+                              paClipOff | paDitherOff, audio_writer_cb, audio);
+        break;
+
+    default:
+        /* should never happen */
+        fprintf(stderr, "%s: Invalid conf %d\n", __func__, conf);
+        error = paInvalidFlag;
+        break;
+    }
 
     if (error != paNoError)
     {
@@ -121,14 +183,16 @@ audio_t        *audio_init(int index)
     }
 
     /* allocate ring buffer */
-    audio->rb = (ring_buffer_t *) malloc(sizeof(ring_buffer_t));
-    ring_buffer_init(audio->rb, BUFFER_SIZE);
+    audio->rxb = (ring_buffer_t *) malloc(sizeof(ring_buffer_t));
+    ring_buffer_init(audio->rxb, BUFFER_SIZE);
+
+    /** FIXME: Won't work when we implement full duplex */
+    audio->txb = audio->rxb;
 
     fprintf(stderr, "Audio stream opened\n");
 
     return audio;
 }
-
 
 int audio_close(audio_t * audio)
 {
@@ -143,14 +207,8 @@ int audio_close(audio_t * audio)
 
     Pa_Terminate();
 
-    fprintf(stderr, " Audio frames (tot): %" PRIu64 "\n", audio->frames_tot);
-    fprintf(stderr, " Audio frames (avg): %" PRIu32 "\n", audio->frames_avg);
-    fprintf(stderr, " Status errors:      %" PRIu32 "\n",
-            audio->status_errors);
-    fprintf(stderr, " Buffer overflows:   %" PRIu32 "\n", audio->overflows);
-
-    ring_buffer_free(audio->rb);
-    free(audio->rb);
+    ring_buffer_free(audio->rxb);
+    free(audio->rxb);
     free(audio);
 
     return error;
@@ -160,12 +218,13 @@ int audio_start(audio_t * audio)
 {
     PaError         error;
 
+    audio->frames_tot = 0;
+    audio->frames_avg = 0;
     audio->status_errors = 0;
     audio->overflows = 0;
-    audio->frames_avg = 0;
-    audio->frames_tot = 0;
+    audio->underflows = 0;
 
-    ring_buffer_clear(audio->rb);
+    ring_buffer_clear(audio->rxb);
 
     error = Pa_StartStream(audio->stream);
     if (error != paNoError)
@@ -195,27 +254,38 @@ int audio_stop(audio_t * audio)
         fprintf(stderr, "Audio stream not active\n");
     }
 
+    fprintf(stderr, " Audio frames (tot): %" PRIu64 "\n", audio->frames_tot);
+    fprintf(stderr, " Audio frames (avg): %" PRIu32 "\n", audio->frames_avg);
+    fprintf(stderr, " Status errors:      %" PRIu32 "\n",
+            audio->status_errors);
+    fprintf(stderr, " Buffer overflows:   %" PRIu32 "\n", audio->overflows);
+    fprintf(stderr, " Buffer underflows:  %" PRIu32 "\n", audio->underflows);
+
     return error;
 }
 
 uint32_t audio_frames_available(audio_t * audio)
 {
-    return ring_buffer_count(audio->rb) / FRAME_SIZE;
+    return ring_buffer_count(audio->rxb) / FRAME_SIZE;
 }
 
-uint32_t audio_get_frames(audio_t * audio, unsigned char *buffer,
-                          uint32_t frames)
+uint32_t audio_read_frames(audio_t * audio, unsigned char *buffer,
+                           uint32_t frames)
 {
-    uint32_t frames_read = ring_buffer_count(audio->rb) / FRAME_SIZE;
+    uint32_t        frames_read = ring_buffer_count(audio->rxb) / FRAME_SIZE;
 
     if (frames_read > frames)
         frames_read = frames;
 
-    ring_buffer_read(audio->rb, buffer, frames_read * FRAME_SIZE);
+    ring_buffer_read(audio->rxb, buffer, frames_read * FRAME_SIZE);
 
     return frames_read;
 }
 
+void audio_write_frames(audio_t * audio, uint8_t * buffer, uint32_t frames)
+{
+    ring_buffer_write(audio->txb, buffer, frames * FRAME_SIZE);
+}
 
 int audio_list_devices(void)
 {
@@ -242,15 +312,16 @@ int audio_list_devices(void)
     }
 
     fprintf(stderr, "\nAvailable input devices:\n");
-    fprintf(stderr, " IDX  Ichan  Rate   Lat. (ms)  Name\n");
+    fprintf(stderr, " IDX  CHi CHo  Rate   Lat. (ms)  Name\n");
     for (i = 0; i < num_devices; i++)
     {
         dev_info = Pa_GetDeviceInfo(i);
 
         if (dev_info->maxInputChannels > 0)
         {
-            fprintf(stderr, " %2d   %3d  %7.0f  %3.0f  %3.0f   %s\n",
-                    i, dev_info->maxInputChannels, dev_info->defaultSampleRate,
+            fprintf(stderr, " %2d  %3d %3d %7.0f  %3.0f  %3.0f   %s\n",
+                    i, dev_info->maxInputChannels, dev_info->maxOutputChannels,
+                    dev_info->defaultSampleRate,
                     1.e3 * dev_info->defaultLowInputLatency,
                     1.e3 * dev_info->defaultHighInputLatency, dev_info->name);
         }

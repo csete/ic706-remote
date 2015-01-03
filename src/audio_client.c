@@ -102,6 +102,8 @@ int main(int argc, char **argv)
     int             connected = 0;
     int             res;
 
+    audio_t        *audio;
+
     struct app_data app = {
         .device_index = -1,
         .server_port = DEFAULT_AUDIO_PORT,
@@ -114,18 +116,23 @@ int main(int argc, char **argv)
         .invalid_pkts = 0,
     };
 
-    /* setup signal handler */
-    if (signal(SIGINT, signal_handler) == SIG_ERR)
-        printf("Warning: Can't catch SIGINT\n");
-    if (signal(SIGTERM, signal_handler) == SIG_ERR)
-        printf("Warning: Can't catch SIGTERM\n");
-
     parse_options(argc, argv, &app);
     if (app.server_ip == NULL)
         app.server_ip = strdup("127.0.0.1");
 
     fprintf(stderr, "Using server IP %s\n", app.server_ip);
     fprintf(stderr, "using server port %d\n", app.server_port);
+
+    /* initialize audio subsystem */
+    audio = audio_init(app.device_index, AUDIO_CONF_OUTPUT);
+    if (audio == NULL)
+        exit(EXIT_FAILURE);
+
+    /* setup signal handler */
+    if (signal(SIGINT, signal_handler) == SIG_ERR)
+        printf("Warning: Can't catch SIGINT\n");
+    if (signal(SIGTERM, signal_handler) == SIG_ERR)
+        printf("Warning: Can't catch SIGTERM\n");
 
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
@@ -174,6 +181,11 @@ int main(int argc, char **argv)
         connected = 1;
         fprintf(stderr, "Connected...\n");
 
+
+        /* Ensure buffer has some data before we start playback */
+        /* start audio playback */
+        audio_start(audio);
+
         while (keep_running && connected)
         {
             res = poll(poll_fds, 1, 500);
@@ -190,6 +202,7 @@ int main(int argc, char **argv)
                 if (num > 0)
                 {
                     net_in_buf.valid_pkts += num;
+                    audio_write_frames(audio, net_in_buf.data, num / 2); /** FIXME */
                 }
                 else if (num == 0)
                 {
@@ -198,6 +211,7 @@ int main(int argc, char **argv)
                     net_fd = -1;
                     connected = 0;
                     poll_fds[0].fd = -1;
+                    audio_stop(audio);
                 }
                 else
                 {
@@ -217,6 +231,9 @@ int main(int argc, char **argv)
     close(net_fd);
     if (app.server_ip != NULL)
         free(app.server_ip);
+
+    audio_stop(audio);
+    audio_close(audio);
 
     fprintf(stderr, "  Valid packets net: %" PRIu64 "\n",
             net_in_buf.valid_pkts);
