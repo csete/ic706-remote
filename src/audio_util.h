@@ -56,6 +56,7 @@ typedef struct audio_data audio_t;
 /**
  * Initialize audio backend.
  * @param   index   The index of the audio device to initialize.
+ * @param   sample_rate Sample rate. Use 0 for default.
  * @param   conf    Audio configuration, see AUDIO_CONF_xyz.
  * @return  Pointer to the audio handle to be used for subsequent API calls.
  * @sa      audio_list_devices()
@@ -63,7 +64,7 @@ typedef struct audio_data audio_t;
  *          full duplex mode, i.e. the callback will both read and write
  *          samples in the same call.
  */
-audio_t        *audio_init(int index, uint8_t conf);
+audio_t        *audio_init(int index, uint32_t sample_rate, uint8_t conf);
 
 /**
  * Close audio stream and terminate portaudio session.

@@ -88,11 +88,10 @@ int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
 }
 
 
-audio_t        *audio_init(int index, uint8_t conf)
+audio_t        *audio_init(int index, uint32_t sample_rate, uint8_t conf)
 {
     audio_t        *audio;
     PaError         error;
-    int             input_rate = SAMPLE_RATE;
 
     if ((conf != AUDIO_CONF_INPUT) && (conf != AUDIO_CONF_OUTPUT))
     {
@@ -144,9 +143,9 @@ audio_t        *audio_init(int index, uint8_t conf)
             audio->input_param.device, audio->device_info->name);
 
     /** FIXME: check if sample rate is supported */
-    if (input_rate == 0)
-        input_rate = audio->device_info->defaultSampleRate;
-    fprintf(stderr, "Sample rate: %d\n", input_rate);
+    if (sample_rate == 0)
+        sample_rate = audio->device_info->defaultSampleRate;
+    fprintf(stderr, "Sample rate: %d\n", sample_rate);
 
     fprintf(stderr, "Latencies (LH): %d  %.d\n",
             (int)(1.e3 * audio->device_info->defaultLowInputLatency),
@@ -156,13 +155,13 @@ audio_t        *audio_init(int index, uint8_t conf)
     {
     case AUDIO_CONF_INPUT:
         error = Pa_OpenStream(&audio->stream, &audio->input_param, NULL,
-                              input_rate, paFramesPerBufferUnspecified,
+                              sample_rate, paFramesPerBufferUnspecified,
                               paClipOff | paDitherOff, audio_reader_cb, audio);
         break;
 
     case AUDIO_CONF_OUTPUT:
         error = Pa_OpenStream(&audio->stream, NULL, &audio->input_param,
-                              input_rate, paFramesPerBufferUnspecified,
+                              sample_rate, paFramesPerBufferUnspecified,
                               paClipOff | paDitherOff,
                               //audio_writer_cb, audio);
                               NULL, NULL);

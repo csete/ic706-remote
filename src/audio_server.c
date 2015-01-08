@@ -12,6 +12,7 @@
 #include <inttypes.h>           // PRId64 and PRIu64
 #include <netinet/in.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,7 @@
 
 /* application state and config */
 struct app_data {
+    uint32_t        sample_rate;        /* audio sample rate */
     int             device_index;       /* audio device index */
     int             network_port;       /* network port number */
 };
@@ -45,6 +47,7 @@ static void help(void)
         "\n Possible options are:\n"
         "\n"
         "  -d <num>    Audio device index (see -l).\n"
+        "  -r <num>    Audio sample rate (default is 48000).\n"
         "  -l          List audio devices.\n"
         "  -p <num>    Network port number (default is 42001).\n"
         "  -h          This help message.\n\n";
@@ -59,12 +62,16 @@ static void parse_options(int argc, char **argv, struct app_data *app)
 
     if (argc > 1)
     {
-        while ((option = getopt(argc, argv, "d:hlp:")) != -1)
+        while ((option = getopt(argc, argv, "d:r:hlp:")) != -1)
         {
             switch (option)
             {
             case 'd':
                 app->device_index = atoi(optarg);
+                break;
+
+            case 'r':
+                app->sample_rate = (uint32_t) atof(optarg);
                 break;
 
             case 'l':
@@ -102,6 +109,7 @@ int main(int argc, char **argv)
     audio_t        *audio;
 
     struct app_data app = {
+        .sample_rate = 48000,
         .device_index = -1,
         .network_port = DEFAULT_AUDIO_PORT,
     };
@@ -117,7 +125,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "Using network port %d\n", app.network_port);
 
     /* initialize audio subsystem */
-    audio = audio_init(app.device_index, AUDIO_CONF_INPUT);
+    audio = audio_init(app.device_index, app.sample_rate, AUDIO_CONF_INPUT);
     if (audio == NULL)
         exit(EXIT_FAILURE);
 
