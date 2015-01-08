@@ -202,7 +202,8 @@ int main(int argc, char **argv)
                 if (num > 0)
                 {
                     net_in_buf.valid_pkts += num;
-                    audio_write_frames(audio, net_in_buf.data, num / 2); /** FIXME */
+                    //audio_write_frames(audio, net_in_buf.data, num / 2); /** FIXME */
+                    Pa_WriteStream(audio->stream, net_in_buf.data, num / 2);
                 }
                 else if (num == 0)
                 {

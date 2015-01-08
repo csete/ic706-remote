@@ -163,7 +163,9 @@ audio_t        *audio_init(int index, uint8_t conf)
     case AUDIO_CONF_OUTPUT:
         error = Pa_OpenStream(&audio->stream, NULL, &audio->input_param,
                               input_rate, paFramesPerBufferUnspecified,
-                              paClipOff | paDitherOff, audio_writer_cb, audio);
+                              paClipOff | paDitherOff,
+                              //audio_writer_cb, audio);
+                              NULL, NULL);
         break;
 
     default:
