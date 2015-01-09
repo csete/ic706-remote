@@ -114,12 +114,12 @@ int main(int argc, char **argv)
         .network_port = DEFAULT_AUDIO_PORT,
     };
 
-    struct xfr_buf  net_in_buf;
-
-    net_in_buf.wridx = 0;
-    net_in_buf.write_errors = 0;
-    net_in_buf.valid_pkts = 0;
-    net_in_buf.invalid_pkts = 0;
+    struct xfr_buf  net_in_buf = {
+        .wridx = 0,
+        .write_errors = 0,
+        .valid_pkts = 0,
+        .invalid_pkts = 0,
+    };
 
     parse_options(argc, argv, &app);
     fprintf(stderr, "Using network port %d\n", app.network_port);
