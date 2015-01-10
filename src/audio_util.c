@@ -32,13 +32,13 @@ int audio_reader_cb(const void *input, void *output, unsigned long frame_cnt,
     PaStreamCallbackResult result = paContinue;
     unsigned long   byte_cnt = frame_cnt * FRAME_SIZE;
 
-    if (byte_cnt + ring_buffer_count(audio->rxb) >
-        ring_buffer_size(audio->rxb))
+    if (byte_cnt + ring_buffer_count(audio->rb) >
+        ring_buffer_size(audio->rb))
     {
         audio->overflows++;
     }
 
-    ring_buffer_write(audio->rxb, (unsigned char *)input, byte_cnt);
+    ring_buffer_write(audio->rb, (unsigned char *)input, byte_cnt);
     audio->frames_tot += frame_cnt;
 
     if (audio->frames_avg)
@@ -65,14 +65,14 @@ int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
     PaStreamCallbackResult result = paContinue;
     unsigned long   byte_cnt = frame_cnt * FRAME_SIZE;
 
-    if (byte_cnt > ring_buffer_count(audio->rxb))
+    if (byte_cnt > ring_buffer_count(audio->rb))
     {
         memset(output, 0, frame_cnt);
         audio->underflows++;
     }
     else
     {
-        ring_buffer_read(audio->txb, (unsigned char *)output, byte_cnt);
+        ring_buffer_read(audio->rb, (unsigned char *)output, byte_cnt);
         audio->frames_tot += frame_cnt;
     }
 
@@ -184,11 +184,8 @@ audio_t        *audio_init(int index, uint32_t sample_rate, uint8_t conf)
     }
 
     /* allocate ring buffer */
-    audio->rxb = (ring_buffer_t *) malloc(sizeof(ring_buffer_t));
-    ring_buffer_init(audio->rxb, BUFFER_SIZE);
-
-    /** FIXME: Won't work when we implement full duplex */
-    audio->txb = audio->rxb;
+    audio->rb = (ring_buffer_t *) malloc(sizeof(ring_buffer_t));
+    ring_buffer_init(audio->rb, BUFFER_SIZE);
 
     fprintf(stderr, "Audio stream opened\n");
 
@@ -208,8 +205,8 @@ int audio_close(audio_t * audio)
 
     Pa_Terminate();
 
-    ring_buffer_free(audio->rxb);
-    free(audio->rxb);
+    ring_buffer_free(audio->rb);
+    free(audio->rb);
     free(audio);
 
     return error;
@@ -225,7 +222,7 @@ int audio_start(audio_t * audio)
     audio->overflows = 0;
     audio->underflows = 0;
 
-    ring_buffer_clear(audio->rxb);
+    ring_buffer_clear(audio->rb);
 
     error = Pa_StartStream(audio->stream);
     if (error != paNoError)
@@ -267,25 +264,25 @@ int audio_stop(audio_t * audio)
 
 uint32_t audio_frames_available(audio_t * audio)
 {
-    return ring_buffer_count(audio->rxb) / FRAME_SIZE;
+    return ring_buffer_count(audio->rb) / FRAME_SIZE;
 }
 
 uint32_t audio_read_frames(audio_t * audio, unsigned char *buffer,
                            uint32_t frames)
 {
-    uint32_t        frames_read = ring_buffer_count(audio->rxb) / FRAME_SIZE;
+    uint32_t        frames_read = ring_buffer_count(audio->rb) / FRAME_SIZE;
 
     if (frames_read > frames)
         frames_read = frames;
 
-    ring_buffer_read(audio->rxb, buffer, frames_read * FRAME_SIZE);
+    ring_buffer_read(audio->rb, buffer, frames_read * FRAME_SIZE);
 
     return frames_read;
 }
 
 void audio_write_frames(audio_t * audio, uint8_t * buffer, uint32_t frames)
 {
-    ring_buffer_write(audio->txb, buffer, frames * FRAME_SIZE);
+    ring_buffer_write(audio->rb, buffer, frames * FRAME_SIZE);
 }
 
 int audio_list_devices(void)

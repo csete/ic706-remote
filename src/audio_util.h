@@ -20,8 +20,7 @@
  * @stream          Audio stream handle.
  * @device_info     Audio device info.
  * @input_param     Input parameters.
- * @rxb             Ring buffer for storing incoming audio data.
- * @txb             Ring buffer for storing outgoing audio data.
+ * @rb              Ring buffer for storing audio data.
  * @frames_tot      Total number of frames received.
  * @frames_avg      Average number of frames received per period.
  * @status_errors   Status errors received in the callback function.
@@ -36,8 +35,7 @@ struct audio_data {
     const PaDeviceInfo *device_info;
     PaStreamParameters input_param;
 
-    ring_buffer_t  *rxb;
-    ring_buffer_t  *txb;
+    ring_buffer_t  *rb;
 
     uint64_t        frames_tot;
     uint32_t        frames_avg;
