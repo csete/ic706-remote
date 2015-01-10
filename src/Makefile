@@ -11,27 +11,27 @@ LIBS = -lm `pkg-config --cflags --libs portaudio-2.0`
 #LFLAGS = 
 
 # IC-706 control server
-IS_SRCS = ic706_server.c common.c
+IS_SRCS = ic706_server.c common.c common.h
 IS_OBJS = $(IS_SRCS:.c=.o)
 IS_MAIN = ic706_server
 
 # IC-706 control client
-IC_SRCS = ic706_client.c common.c
+IC_SRCS = ic706_client.c common.c common.h
 IC_OBJS = $(IC_SRCS:.c=.o)
 IC_MAIN = ic706_client
 
 # Audio server
-AS_SRCS = audio_server.c audio_util.c common.c
+AS_SRCS = audio_server.c audio_util.c audio_util.h common.c common.h
 AS_OBJS = $(AS_SRCS:.c=.o)
 AS_MAIN = audio_server
 
 # Audio client
-AC_SRCS = audio_client.c audio_util.c common.c
+AC_SRCS = audio_client.c audio_util.c audio_util.h common.c common.h
 AC_OBJS = $(AC_SRCS:.c=.o)
 AC_MAIN = audio_client
 
 # serial gateway (not built by default)
-SG_SRCS = serial_gateway.c common.c
+SG_SRCS = serial_gateway.c common.c common.h
 SG_OBJS = $(SG_SRCS:.c=.o)
 SG_MAIN = serial_gateway
 
