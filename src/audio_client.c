@@ -212,8 +212,8 @@ int main(int argc, char **argv)
             if (poll_fds[0].revents & POLLIN)
             {
 
-#define AUDIO_FRAMES 5760       // allows receiving 120 ms frames
-#define AUDIO_BUFLEN 2 * AUDIO_FRAMES   // 120 msek: 48000 * 0.12
+#define AUDIO_FRAMES 5760       // allows receiving up to 120 msec frames
+#define AUDIO_BUFLEN 2 * AUDIO_FRAMES   // 120 msec: 48000 * 0.12
                 uint8_t         buffer1[AUDIO_BUFLEN];
                 uint8_t         buffer2[AUDIO_BUFLEN * 2];
                 uint16_t        length;

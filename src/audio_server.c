@@ -261,7 +261,6 @@ int main(int argc, char **argv)
             uint8_t         buffer2[AUDIO_BUFLEN + 2];
             uint16_t        length;
 
-            /** FIXME: We should read all frames modulo encoder frame */
             if (audio_frames_available(audio) < AUDIO_FRAMES)
                 continue;
 
@@ -275,14 +274,14 @@ int main(int argc, char **argv)
             }
             else
             {
-                /* encode audio frame (item 0, 1 in buf2 reserved for header */
+                /* encode audio frame (items 0, 1 are reserved for header) */
                 length = opus_encode(encoder, (opus_int16 *) buffer1,
                                      AUDIO_FRAMES, &buffer2[2], AUDIO_BUFLEN);
                 if (length > 0)
                 {
                     encoded_bytes += length;
 
-                    /* add header:
+                    /* Add header according to RemoteSDR ICD:
                      *   byte 1: LSB of buffer length incl header
                      *   byte 2: 0x80 & 5 bit MSB of buffer length incl. header
                      */
