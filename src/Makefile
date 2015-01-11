@@ -4,8 +4,8 @@
 #
 
 CC = gcc
-CFLAGS = -Wall -Wextra -O3 `pkg-config --cflags --libs portaudio-2.0`
-LIBS = -lm `pkg-config --cflags --libs portaudio-2.0`
+CFLAGS = -Wall -Wextra -O3 `pkg-config --cflags --libs portaudio-2.0 opus`
+LIBS = -lm `pkg-config --cflags --libs portaudio-2.0 opus`
 
 #INCLUDES = -I./src/
 #LFLAGS = 

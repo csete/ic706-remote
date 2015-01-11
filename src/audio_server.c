@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <inttypes.h>           // PRId64 and PRIu64
 #include <netinet/in.h>
+#include <opus.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -25,6 +26,8 @@
 
 /* application state and config */
 struct app_data {
+    int32_t         opus_bitrate;
+    int32_t         opus_complexity;
     uint32_t        sample_rate;        /* audio sample rate */
     int             device_index;       /* audio device index */
     int             network_port;       /* network port number */
@@ -46,11 +49,13 @@ static void help(void)
         "\n Usage: audio_server [options]\n"
         "\n Possible options are:\n"
         "\n"
-        "  -d <num>    Audio device index (see -l).\n"
-        "  -r <num>    Audio sample rate (default is 48000).\n"
-        "  -l          List audio devices.\n"
-        "  -p <num>    Network port number (default is 42001).\n"
-        "  -h          This help message.\n\n";
+        "  -d <num>  Audio device index (see -l).\n"
+        "  -r <num>  Audio sample rate (default is 48000).\n"
+        "  -l        List audio devices.\n"
+        "  -b <num>  Opus encoder output rate in bits per sec (default is 16 kbps).\n"
+        "  -c <num>  Opus encoder complexity 1-10 (default is 5).\n"
+        "  -p <num>  Network port number (default is 42001).\n"
+        "  -h        This help message.\n\n";
 
     fprintf(stderr, "%s", help_string);
 }
@@ -62,7 +67,7 @@ static void parse_options(int argc, char **argv, struct app_data *app)
 
     if (argc > 1)
     {
-        while ((option = getopt(argc, argv, "d:r:hlp:")) != -1)
+        while ((option = getopt(argc, argv, "d:r:lb:c:p:h")) != -1)
         {
             switch (option)
             {
@@ -77,6 +82,14 @@ static void parse_options(int argc, char **argv, struct app_data *app)
             case 'l':
                 audio_list_devices();
                 exit(EXIT_SUCCESS);
+
+            case 'b':
+                app->opus_bitrate = (int32_t) atof(optarg);
+                break;
+
+            case 'c':
+                app->opus_complexity = atoi(optarg);
+                break;
 
             case 'p':
                 app->network_port = atoi(optarg);
@@ -95,6 +108,21 @@ static void parse_options(int argc, char **argv, struct app_data *app)
     }
 }
 
+static void setup_encoder(OpusEncoder * encoder, struct app_data *app)
+{
+    opus_int32      x;
+
+    fprintf(stderr, "Configuring opus encoder:\n");
+
+    opus_encoder_ctl(encoder, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_WIDEBAND));
+    opus_encoder_ctl(encoder, OPUS_SET_BITRATE(app->opus_bitrate));
+    opus_encoder_ctl(encoder, OPUS_SET_COMPLEXITY(app->opus_complexity));
+
+    opus_encoder_ctl(encoder, OPUS_GET_COMPLEXITY(&x));
+    fprintf(stderr, "  Complexity: %d\n", x);
+    opus_encoder_ctl(encoder, OPUS_GET_BITRATE(&x));
+    fprintf(stderr, "  Bitrate   : %d\n", x);
+}
 
 int main(int argc, char **argv)
 {
@@ -107,8 +135,15 @@ int main(int argc, char **argv)
     int             connected;
 
     audio_t        *audio;
+    OpusEncoder    *encoder;
+    uint64_t        encoded_bytes = 0;
+    uint64_t        encoder_errors = 0;
+    int             error;
+
 
     struct app_data app = {
+        .opus_bitrate = 16000,
+        .opus_complexity = 5,
         .sample_rate = 48000,
         .device_index = -1,
         .network_port = DEFAULT_AUDIO_PORT,
@@ -128,6 +163,18 @@ int main(int argc, char **argv)
     audio = audio_init(app.device_index, app.sample_rate, AUDIO_CONF_INPUT);
     if (audio == NULL)
         exit(EXIT_FAILURE);
+
+    /* audio encoder */
+    encoder = opus_encoder_create(app.sample_rate, 1,
+                                  OPUS_APPLICATION_AUDIO, &error);
+    if (error != OPUS_OK)
+    {
+        fprintf(stderr, "Error creating opus encoder: %d (%s)\n",
+                error, opus_strerror(error));
+        audio_close(audio);
+        exit(EXIT_FAILURE);
+    }
+    setup_encoder(encoder, &app);
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -210,25 +257,50 @@ int main(int argc, char **argv)
         {
 #define AUDIO_FRAMES 1920       // 40 msek: 48000 * 0.04
 #define AUDIO_BUFLEN 3840
-            uint8_t         buffer[AUDIO_BUFLEN];
-            uint32_t        frames_read;
+            uint8_t         buffer1[AUDIO_BUFLEN];
+            uint8_t         buffer2[AUDIO_BUFLEN + 2];
+            uint16_t        length;
 
             /** FIXME: We should read all frames modulo encoder frame */
             if (audio_frames_available(audio) < AUDIO_FRAMES)
                 continue;
 
-            frames_read = audio_read_frames(audio, buffer, AUDIO_FRAMES);
+            length = audio_read_frames(audio, buffer1, AUDIO_FRAMES);
 
-            if (frames_read != AUDIO_FRAMES)
+            if (length != AUDIO_FRAMES)
             {
                 fprintf(stderr,
                         "Error reading audio (got %d instead of %d frames)\n",
-                        frames_read, AUDIO_FRAMES);
+                        length, AUDIO_FRAMES);
             }
             else
             {
-                if (write(poll_fds[1].fd, buffer, AUDIO_FRAMES * 2) < 0)
-                    fprintf(stderr, "Error writing audio to network socket\n");
+                /* encode audio frame (item 0, 1 in buf2 reserved for header */
+                length = opus_encode(encoder, (opus_int16 *) buffer1,
+                                     AUDIO_FRAMES, &buffer2[2], AUDIO_BUFLEN);
+                if (length > 0)
+                {
+                    encoded_bytes += length;
+
+                    /* add header:
+                     *   byte 1: LSB of buffer length incl header
+                     *   byte 2: 0x80 & 5 bit MSB of buffer length incl. header
+                     */
+                    length += 2;
+                    buffer2[0] = (uint8_t) (length & 0xFF);
+                    buffer2[1] = (uint8_t) (0x80 | ((length >> 8) & 0x1F));
+                    if (write(poll_fds[1].fd, buffer2, length) < 0)
+                        fprintf(stderr,
+                                "Error writing audio to network socket\n");
+                    //else
+                    //    fprintf(stderr, "SENT: %d\n", length);
+                }
+                else
+                {
+                    encoder_errors++;
+                    fprintf(stderr, "Encoder error: %d (%s)\n",
+                            length, opus_strerror(length));
+                }
             }
 
         }
@@ -245,8 +317,13 @@ int main(int argc, char **argv)
     audio_stop(audio);
     audio_close(audio);
 
+    opus_encoder_destroy(encoder);
+
     //fprintf(stderr, "  Audio bytes: %" PRIu64 "\n", abuf.bytes_read);
     //fprintf(stderr, "  Average read: %" PRIu64 "\n", abuf.avg_read);
+
+    fprintf(stderr, "  Encoded bytes : %" PRIu64 "\n", encoded_bytes);
+    fprintf(stderr, "  Encoder errors: %" PRIu64 "\n", encoder_errors);
 
     exit(exit_code);
 }

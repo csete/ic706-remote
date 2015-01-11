@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <inttypes.h>           // PRId64 and PRIu64
 #include <netinet/in.h>
+#include <opus.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -110,18 +111,15 @@ int main(int argc, char **argv)
     int             res;
 
     audio_t        *audio;
+    OpusDecoder    *decoder;
+    uint64_t        encoded_bytes = 0;
+    uint64_t        decoder_errors = 0;
+    int             error;
 
     struct app_data app = {
         .sample_rate = 48000,
         .device_index = -1,
         .server_port = DEFAULT_AUDIO_PORT,
-    };
-
-    struct xfr_buf  net_in_buf = {
-        .wridx = 0,
-        .write_errors = 0,
-        .valid_pkts = 0,
-        .invalid_pkts = 0,
     };
 
     parse_options(argc, argv, &app);
@@ -135,6 +133,15 @@ int main(int argc, char **argv)
     audio = audio_init(app.device_index, app.sample_rate, AUDIO_CONF_OUTPUT);
     if (audio == NULL)
         exit(EXIT_FAILURE);
+
+    decoder = opus_decoder_create(app.sample_rate, 1, &error);
+    if (error != OPUS_OK)
+    {
+        fprintf(stderr, "Error creating opus decoder: %d (%s)\n",
+                error, opus_strerror(error));
+        audio_close(audio);
+        exit(EXIT_FAILURE);
+    }
 
     /* setup signal handler */
     if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -204,14 +211,55 @@ int main(int argc, char **argv)
             /* service network socket */
             if (poll_fds[0].revents & POLLIN)
             {
+
+#define AUDIO_FRAMES 5760       // allows receiving 120 ms frames
+#define AUDIO_BUFLEN 2 * AUDIO_FRAMES   // 120 msek: 48000 * 0.12
+                uint8_t         buffer1[AUDIO_BUFLEN];
+                uint8_t         buffer2[AUDIO_BUFLEN * 2];
+                uint16_t        length;
+
                 int             num;
 
-                num = read(net_fd, net_in_buf.data, RDBUF_SIZE);
-                if (num > 0)
+                /* read 2 byte header */
+                num = read(net_fd, buffer1, 2);
+                if (num != 2)
                 {
-                    net_in_buf.valid_pkts += num;
-                    //audio_write_frames(audio, net_in_buf.data, num / 2); /** FIXME */
-                    Pa_WriteStream(audio->stream, net_in_buf.data, num / 2);
+                    /* unrecovarable error; disconnect */
+                    fprintf(stderr, "Error reading packet header: %d\n", num);
+                    close(net_fd);
+                    net_fd = -1;
+                    connected = 0;
+                    poll_fds[0].fd = -1;
+                    audio_stop(audio);
+
+                    num = opus_decode(decoder, NULL, 0, (opus_int16 *) buffer2,
+                                      AUDIO_FRAMES, 0);
+
+                    continue;
+                }
+
+                length = buffer1[0] + ((buffer1[1] & 0x1F) << 8);
+                length -= 2;
+                num = read(net_fd, buffer1, length);
+
+                if (num == length)
+                {
+                    encoded_bytes += num;
+                    num = opus_decode(decoder, buffer1, num,
+                                      (opus_int16 *) buffer2, AUDIO_FRAMES, 0);
+                    //fprintf(stderr, "REC: %d -> %d\n", length+2, num);
+                    if (num > 0)
+                    {
+                        /** FIXME **/
+                        //audio_write_frames(audio, net_in_buf.data, num / 2);
+                        Pa_WriteStream(audio->stream, buffer2, num);
+                    }
+                    else
+                    {
+                        decoder_errors++;
+                        fprintf(stderr, "Decoder error: %d (%s)\n", num,
+                                opus_strerror(num));
+                    }
                 }
                 else if (num == 0)
                 {
@@ -224,7 +272,7 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    fprintf(stderr, "Error reading from network socket\n");
+                    fprintf(stderr, "Error reading from net: %d / \n", num);
                 }
 
             }
@@ -243,9 +291,10 @@ int main(int argc, char **argv)
 
     audio_stop(audio);
     audio_close(audio);
+    opus_decoder_destroy(decoder);
 
-    fprintf(stderr, "  Valid packets net: %" PRIu64 "\n",
-            net_in_buf.valid_pkts);
+    fprintf(stderr, "  Encoded bytes in: %" PRIu64 "\n", encoded_bytes);
+    fprintf(stderr, "  Decoder errors  : %" PRIu64 "\n", decoder_errors);
 
     exit(exit_code);
 }
