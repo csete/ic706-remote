@@ -288,13 +288,18 @@ int pwk_init(void)
     int             fd;
     int             wr_err = 0;
 
-    /*  $ echo 7 > /sys/class/gpio/export */
-    fd = open("/sys/class/gpio/export", O_WRONLY);
-    if (fd < 0)
-        return -1;
 
-    wr_err += write(fd, "7", 1) != 1;
-    close(fd);
+    /*  Export GPIO7 unless it is already exported */
+    if (access("/sys/class/gpio/gpio7", F_OK) == -1)
+    {
+        /*  $ echo 7 > /sys/class/gpio/export */
+        fd = open("/sys/class/gpio/export", O_WRONLY);
+        if (fd < 0)
+            return -1;
+
+        wr_err += write(fd, "7", 1) != 1;
+        close(fd);
+    }
 
     /*  $ echo "in" > /sys/class/gpio/gpio7/direction */
     fd = open("/sys/class/gpio/gpio7/direction", O_WRONLY);
@@ -339,14 +344,20 @@ int gpio_init_out(unsigned int gpio)
     int             wr_err = 0;
     char            buf[MAX_GPIO_BUF];
 
-    /* export GPIO */
-    fd = open(SYSFS_GPIO_DIR "export", O_WRONLY);
-    if (fd < 0)
-        return -1;
 
-    len = snprintf(buf, sizeof(buf), "%d", gpio);
-    wr_err += write(fd, buf, len) != len;
-    close(fd);
+    /* check whether GPIO is already exported, if not, export it */
+    snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "gpio%d", gpio);
+    if (access(buf, F_OK) == -1)
+    {
+        /* export GPIO */
+        fd = open(SYSFS_GPIO_DIR "export", O_WRONLY);
+        if (fd < 0)
+            return -1;
+
+        len = snprintf(buf, sizeof(buf), "%d", gpio);
+        wr_err += write(fd, buf, len) != len;
+        close(fd);
+    }
 
     /* set direction to "out" */
     snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "gpio%d/direction", gpio);
@@ -387,6 +398,6 @@ int gpio_set_value(unsigned int gpio, unsigned int value)
         wr_err += write(fd, "0", 1) != 1;
 
     close(fd);
-    
+
     return -wr_err;
 }
