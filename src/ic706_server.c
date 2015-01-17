@@ -27,6 +27,12 @@ static char    *uart = NULL;    /* UART port */
 static int      port = 42000;   /* Network port */
 static int      keep_running = 1;       /* set to 0 to exit infinite loop */
 
+/* Copy of connected client IP address in betwork byte order.
+ * Used to check whether a new conection comes from a client that has
+ * connected earlier but disappeared without properly disconnecting.
+ */
+uint32_t        client_addr = 0;
+
 /* GPIO pin used to emulate PWK signal */
 #define  GPIO_PWK 20
 
@@ -278,6 +284,7 @@ int main(int argc, char **argv)
                 close(net_fd);
                 net_fd = -1;
                 connected = 0;
+                client_addr = 0;
                 break;
             }
         }
@@ -302,8 +309,21 @@ int main(int argc, char **argv)
             {
                 fprintf(stderr, "Connection accepted (FD=%d)\n", new);
                 net_fd = new;
+                client_addr = cli_addr.sin_addr.s_addr;
                 FD_SET(net_fd, &active_fds);
                 connected = 1;
+            }
+            else if (client_addr == cli_addr.sin_addr.s_addr)
+            {
+                /* this is the same client reconnecting */
+                fprintf(stderr,
+                        "Client already connected; reconnect (FD= %d -> %d)\n",
+                        net_fd, new);
+
+                FD_CLR(net_fd, &active_fds);
+                close(net_fd);
+                net_fd = new;
+                FD_SET(net_fd, &active_fds);
             }
             else
             {

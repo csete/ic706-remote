@@ -31,6 +31,12 @@ struct app_data {
     uint32_t        sample_rate;        /* audio sample rate */
     int             device_index;       /* audio device index */
     int             network_port;       /* network port number */
+
+    /* Copy of connected client IP address in betwork byte order.
+     * Used to check whether a new conection comes from a client that has
+     * connected earlier but disappeared without properly disconnecting.
+     */
+    uint32_t        cli_addr;
 };
 
 
@@ -147,6 +153,7 @@ int main(int argc, char **argv)
         .sample_rate = 48000,
         .device_index = -1,
         .network_port = DEFAULT_AUDIO_PORT,
+        .cli_addr = 0,
     };
 
     struct xfr_buf  net_in_buf = {
@@ -212,6 +219,7 @@ int main(int argc, char **argv)
                 poll_fds[1].fd = -1;
                 poll_fds[1].events = 0;
                 connected = 0;
+                app.cli_addr = 0;
                 audio_stop(audio);
                 break;
             }
@@ -243,7 +251,18 @@ int main(int argc, char **argv)
                 poll_fds[1].events = POLLIN;
 
                 connected = 1;
+                app.cli_addr = cli_addr.sin_addr.s_addr;
+
                 audio_start(audio);
+            }
+            else if (app.cli_addr == cli_addr.sin_addr.s_addr)
+            {
+                /* this is the same client reconnecting */
+                fprintf(stderr,
+                        "Client already connected; reconnect (FD= %d -> %d)\n",
+                        poll_fds[1].fd, new);
+                close(poll_fds[1].fd);
+                poll_fds[1].fd = new;
             }
             else
             {
