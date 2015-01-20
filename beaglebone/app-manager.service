@@ -1,0 +1,16 @@
+[Unit]
+Description=Application manager for IC-706 client
+After=network-online.target
+
+[Service]
+WorkingDirectory=/home/debian/bin
+ExecStart=/home/debian/bin/app_mgr.sh
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=APPMGR
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
