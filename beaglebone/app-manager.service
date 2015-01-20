@@ -7,7 +7,7 @@ WorkingDirectory=/home/debian/bin
 ExecStart=/home/debian/bin/app_mgr.sh
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=APPMGR
+SyslogIdentifier=appmgr
 Restart=on-failure
 RestartSec=5
 

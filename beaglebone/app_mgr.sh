@@ -4,6 +4,8 @@
 # in repsonse to hardware inputs (GPIO 67 and 68)
 #
 
+echo "Starting application manager"
+
 # GPIO for activating control client
 if [ ! -e /sys/class/gpio/gpio67 ]
 then
@@ -63,4 +65,6 @@ do
 
     sleep 1
 done
+
+echo "Application manager stopped"
 
