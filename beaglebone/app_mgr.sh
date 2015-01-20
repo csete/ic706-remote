@@ -32,7 +32,9 @@ do
 
     if [ "$GPIO67" -eq "1" ]
     then
-        if [ "$CTLON" == "inactive" ]
+        # NOTE: status is "inactive" if service enabled (systemctl enable)
+        # but if service is not enabled it will be unknown
+        if [ "$CTLON" == "unknown" ]
         then
             echo "Launching IC-706 control client..."
             systemctl start ic706-client.service
@@ -50,7 +52,7 @@ do
 
     if [ "$GPIO68" -eq "1" ]
     then
-        if [ "$AUDON" == "inactive" ]
+        if [ "$AUDON" == "unknown" ]
         then
             echo "Launching audio client..."
             systemctl start audio-client.service
