@@ -115,6 +115,7 @@ int main(int argc, char **argv)
     uint64_t        encoded_bytes = 0;
     uint64_t        decoder_errors = 0;
     int             error;
+    uint64_t        iter = 0;
 
     struct app_data app = {
         .sample_rate = 48000,
@@ -199,7 +200,7 @@ int main(int argc, char **argv)
 
         /* Ensure buffer has some data before we start playback */
         /* start audio playback */
-        audio_start(audio);
+        //audio_start(audio);
 
         while (keep_running && connected)
         {
@@ -251,8 +252,16 @@ int main(int argc, char **argv)
                     if (num > 0)
                     {
                         /** FIXME **/
-                        //audio_write_frames(audio, net_in_buf.data, num / 2);
-                        Pa_WriteStream(audio->stream, buffer2, num);
+                        audio_write_frames(audio, buffer2, num);
+                        //Pa_WriteStream(audio->stream, buffer2, num);
+
+                        /* start playback when there is 160 msec data */
+                        iter++;
+                        if (iter == 4)
+                        {
+                            audio_start(audio);
+                        }
+
                     }
                     else
                     {
@@ -277,7 +286,7 @@ int main(int argc, char **argv)
 
             }
 
-            usleep(10000);
+            //usleep(10000);
         }
     }
 

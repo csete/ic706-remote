@@ -17,7 +17,7 @@
 #define SAMPLE_RATE 48000
 #define CHANNELS    1
 #define FRAME_SIZE  2 * CHANNELS        /* 2 bytes / sample */
-#define BUFFER_LEN_SEC 0.2
+#define BUFFER_LEN_SEC 0.4
 #define BUFFER_SIZE (SAMPLE_RATE * FRAME_SIZE) * BUFFER_LEN_SEC
 
 
@@ -58,17 +58,22 @@ int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
                     PaStreamCallbackFlags statusFlags, void *user_data)
 {
     (void)input;
-    (void)output;
     (void)timeInfo;
 
     audio_t        *audio = (audio_t *) user_data;
     PaStreamCallbackResult result = paContinue;
     unsigned long   byte_cnt = frame_cnt * FRAME_SIZE;
+    unsigned long   i;
+    uint16_t       *out = (uint16_t *)output;
+
 
     if (byte_cnt > ring_buffer_count(audio->rb))
     {
-        memset(output, 0, frame_cnt);
+        for (i = 0; i < frame_cnt; i++)
+            out[i] = 0;
+
         audio->underflows++;
+        fprintf(stderr, "aU: %ld / %ld\n", byte_cnt, ring_buffer_count(audio->rb));
     }
     else
     {
@@ -76,6 +81,7 @@ int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
         audio->frames_tot += frame_cnt;
     }
 
+    /* update statistics */
     if (audio->frames_avg)
         audio->frames_avg = (audio->frames_avg + frame_cnt) / 2;
     else
@@ -163,8 +169,8 @@ audio_t        *audio_init(int index, uint32_t sample_rate, uint8_t conf)
         error = Pa_OpenStream(&audio->stream, NULL, &audio->input_param,
                               sample_rate, paFramesPerBufferUnspecified,
                               paClipOff | paDitherOff,
-                              //audio_writer_cb, audio);
-                              NULL, NULL);
+                              audio_writer_cb, audio);
+                              //NULL, NULL);
         break;
 
     default:
@@ -222,7 +228,8 @@ int audio_start(audio_t * audio)
     audio->overflows = 0;
     audio->underflows = 0;
 
-    ring_buffer_clear(audio->rb);
+    // FIXME: clearing buffer here doesn't work with pre-start buffering
+    //ring_buffer_clear(audio->rb);
 
     error = Pa_StartStream(audio->stream);
     if (error != paNoError)
@@ -309,7 +316,7 @@ int audio_list_devices(void)
         return 0;
     }
 
-    fprintf(stderr, "\nAvailable input devices:\n");
+    fprintf(stderr, "\nAvailable input / output devices:\n");
     fprintf(stderr, " IDX  CHi CHo  Rate   Lat. (ms)  Name\n");
     for (i = 0; i < num_devices; i++)
     {
