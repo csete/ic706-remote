@@ -3,6 +3,7 @@ audio_server
 ic706_client
 ic706_server
 serial_gateway
+pa_devs
 *.log
 *.o
 
