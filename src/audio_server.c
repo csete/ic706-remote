@@ -274,7 +274,7 @@ int main(int argc, char **argv)
         /* process available audio data */
         if (connected)
         {
-#define AUDIO_FRAMES 1920       // 40 msek: 48000 * 0.04
+#define AUDIO_FRAMES 1920       // 40 msec: 48000 * 0.04
 #define AUDIO_BUFLEN 3840
             uint8_t         buffer1[AUDIO_BUFLEN];
             uint8_t         buffer2[AUDIO_BUFLEN + 2];
