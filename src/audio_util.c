@@ -17,8 +17,11 @@
 #define SAMPLE_RATE 48000
 #define CHANNELS    1
 #define FRAME_SIZE  2 * CHANNELS        /* 2 bytes / sample */
-#define BUFFER_LEN_SEC 0.4
+#define BUFFER_LEN_SEC 0.6
 #define BUFFER_SIZE (SAMPLE_RATE * FRAME_SIZE) * BUFFER_LEN_SEC
+
+/* buffer threshold to start playback */
+#define PLAYBACK_THRESHOLD (SAMPLE_RATE * FRAME_SIZE) * 0.2
 
 
 int audio_reader_cb(const void *input, void *output, unsigned long frame_cnt,
@@ -67,6 +70,20 @@ int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
     uint16_t       *out = (uint16_t *)output;
 
 
+    if (audio->player_state == AUDIO_STATE_BUFFERING)
+    {
+        if (ring_buffer_count(audio->rb) < PLAYBACK_THRESHOLD)
+        {
+            for (i = 0; i < frame_cnt; i++)
+                out[i] = 0;
+
+            return result;
+        }
+        /* there is enough data in buffer to start playback */
+        audio->player_state = AUDIO_STATE_PLAYING;
+    }
+
+
     if (byte_cnt > ring_buffer_count(audio->rb))
     {
         for (i = 0; i < frame_cnt; i++)
@@ -74,6 +91,9 @@ int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
 
         audio->underflows++;
         fprintf(stderr, "aU: %ld / %ld\n", byte_cnt, ring_buffer_count(audio->rb));
+
+        /* switch back to buffering */
+        audio->player_state = AUDIO_STATE_BUFFERING;
     }
     else
     {
@@ -123,6 +143,7 @@ audio_t        *audio_init(int index, uint32_t sample_rate, uint8_t conf)
     audio->overflows = 0;
     audio->underflows = 0;
     audio->conf = conf;
+    audio->player_state = AUDIO_STATE_STOPPED;
 
     if (index < 0)
     {
@@ -228,15 +249,19 @@ int audio_start(audio_t * audio)
     audio->overflows = 0;
     audio->underflows = 0;
 
-    // FIXME: clearing buffer here doesn't work with pre-start buffering
-    //ring_buffer_clear(audio->rb);
+    ring_buffer_clear(audio->rb);
 
     error = Pa_StartStream(audio->stream);
     if (error != paNoError)
+    {
         fprintf(stderr, "Error starting audio stream %d: %s\n",
                 error, Pa_GetErrorText(error));
+    }
     else
+    {
         fprintf(stderr, "Audio stream started\n");
+        audio->player_state = AUDIO_STATE_BUFFERING;
+    }
 
     return error;
 }
@@ -258,6 +283,8 @@ int audio_stop(audio_t * audio)
     {
         fprintf(stderr, "Audio stream not active\n");
     }
+
+    audio->player_state = AUDIO_STATE_STOPPED;
 
     fprintf(stderr, " Audio frames (tot): %" PRIu64 "\n", audio->frames_tot);
     fprintf(stderr, " Audio frames (avg): %" PRIu32 "\n", audio->frames_avg);

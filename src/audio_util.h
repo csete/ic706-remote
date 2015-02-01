@@ -29,6 +29,7 @@
  * @underflows      Number of times audio output requested more frames than we
  *                  had in the buffer.
  * @conf            Audio configuration flags (input, output duplex).
+ * @player_state    Audio player state (stopped, buffering, playing).
  */
 struct audio_data {
     PaStream       *stream;
@@ -43,6 +44,8 @@ struct audio_data {
     uint32_t        overflows;
     uint32_t        underflows;
     uint8_t         conf;
+
+    uint8_t         player_state;
 };
 
 typedef struct audio_data audio_t;
@@ -50,6 +53,10 @@ typedef struct audio_data audio_t;
 #define AUDIO_CONF_INPUT    0x01
 #define AUDIO_CONF_OUTPUT   0x02
 #define AUDIO_CONF_DUPLEX   0x03
+
+#define AUDIO_STATE_STOPPED     0x00
+#define AUDIO_STATE_BUFFERING   0x01
+#define AUDIO_STATE_PLAYING     0x02
 
 /**
  * Initialize audio backend.
