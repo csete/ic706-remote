@@ -90,7 +90,8 @@ int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
             out[i] = 0;
 
         audio->underflows++;
-        fprintf(stderr, "aU: %ld / %ld\n", byte_cnt, ring_buffer_count(audio->rb));
+        fprintf(stderr, "aU: %ld / %" PRIuFAST32 "\n", byte_cnt,
+                ring_buffer_count(audio->rb));
 
         /* switch back to buffering */
         audio->player_state = AUDIO_STATE_BUFFERING;
