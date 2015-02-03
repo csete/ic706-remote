@@ -245,13 +245,10 @@ int main(int argc, char **argv)
                     encoded_bytes += num;
                     num = opus_decode(decoder, buffer1, num,
                                       (opus_int16 *) buffer2, AUDIO_FRAMES, 0);
-                    //fprintf(stderr, "REC: %d -> %d\n", length+2, num);
+
                     if (num > 0)
                     {
-                        /** FIXME **/
                         audio_write_frames(audio, buffer2, num);
-                        //Pa_WriteStream(audio->stream, buffer2, num);
-
                     }
                     else
                     {
@@ -275,8 +272,6 @@ int main(int argc, char **argv)
                 }
 
             }
-
-            //usleep(10000);
         }
     }
 
