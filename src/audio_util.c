@@ -35,8 +35,7 @@ int audio_reader_cb(const void *input, void *output, unsigned long frame_cnt,
     PaStreamCallbackResult result = paContinue;
     unsigned long   byte_cnt = frame_cnt * FRAME_SIZE;
 
-    if (byte_cnt + ring_buffer_count(audio->rb) >
-        ring_buffer_size(audio->rb))
+    if (byte_cnt + ring_buffer_count(audio->rb) > ring_buffer_size(audio->rb))
     {
         audio->overflows++;
     }
@@ -67,7 +66,7 @@ int audio_writer_cb(const void *input, void *output, unsigned long frame_cnt,
     PaStreamCallbackResult result = paContinue;
     unsigned long   byte_cnt = frame_cnt * FRAME_SIZE;
     unsigned long   i;
-    uint16_t       *out = (uint16_t *)output;
+    uint16_t       *out = (uint16_t *) output;
 
 
     if (audio->player_state == AUDIO_STATE_BUFFERING)
@@ -187,9 +186,7 @@ audio_t        *audio_init(int index, uint32_t sample_rate, uint8_t conf)
     case AUDIO_CONF_OUTPUT:
         error = Pa_OpenStream(&audio->stream, NULL, &audio->input_param,
                               sample_rate, paFramesPerBufferUnspecified,
-                              paClipOff | paDitherOff,
-                              audio_writer_cb, audio);
-                              //NULL, NULL);
+                              paClipOff | paDitherOff, audio_writer_cb, audio);
         break;
 
     default:
