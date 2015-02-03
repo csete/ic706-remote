@@ -17,7 +17,7 @@
 #define SAMPLE_RATE 48000
 #define CHANNELS    1
 #define FRAME_SIZE  2 * CHANNELS        /* 2 bytes / sample */
-#define BUFFER_LEN_SEC 0.6
+#define BUFFER_LEN_SEC 0.48
 #define BUFFER_SIZE (SAMPLE_RATE * FRAME_SIZE) * BUFFER_LEN_SEC
 
 /* buffer threshold to start playback */
