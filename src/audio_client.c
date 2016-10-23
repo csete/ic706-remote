@@ -95,11 +95,9 @@ static void parse_options(int argc, char **argv, struct app_data *app)
                 help();
                 exit(EXIT_FAILURE);
             }
-
         }
     }
 }
-
 
 int main(int argc, char **argv)
 {

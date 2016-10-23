@@ -36,7 +36,6 @@ uint32_t        client_addr = 0;
 /* GPIO pin used to emulate PWK signal */
 #define  GPIO_PWK 20
 
-
 void signal_handler(int signo)
 {
     if (signo == SIGINT)
@@ -89,7 +88,6 @@ static void parse_options(int argc, char **argv)
                 help();
                 exit(EXIT_FAILURE);
             }
-
         }
     }
 }
@@ -334,7 +332,6 @@ int main(int argc, char **argv)
 
         usleep(LOOP_DELAY_US);
     }
-
 
     fprintf(stderr, "Shutting down...\n");
     exit_code = EXIT_SUCCESS;

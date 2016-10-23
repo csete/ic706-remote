@@ -86,16 +86,19 @@ struct xfr_buf {
 
 /**
  * Create a server socket.
+ * 
  * @param port  The network port to listen on.
  * @return      The file descriptor of the wserver socket or -1 if an error
  *              occured during the setup.
  */
 int             create_server_socket(int port);
 
-/** Read data from file descriptor.
- *  @param  fd      The file descriptor.
- *  @param  buffer  Pointer to the serial_buffer structure to use.
- *  @returns The packet type if the packet is complete.
+/**
+ * Read data from file descriptor.
+ *
+ * @param  fd      The file descriptor.
+ * @param  buffer  Pointer to the serial_buffer structure to use.
+ * @returns The packet type if the packet is complete.
  *
  * This function will read all available data from the UART and put the
  * data into the buffer starting at index buffer->wridx. When the read
@@ -118,6 +121,7 @@ int             read_data(int fd, struct xfr_buf *buffer);
 
 /**
  * Transfer data from one interface to the other.
+ *
  * @param ifd Input file descriptor.
  * @param ofd Output file descriptor.
  * @param buffer Pointer to the serial buffer structure use to collect
@@ -140,12 +144,14 @@ uint64_t        time_us(void);
 
 /**
  * Send keep-alive messages to FD.
- * \return 0 if the write was successful.
+ *
+ * @return 0 if the write was successful.
  */
 int             send_keepalive(int fd);
 
 /**
  * Send a PKT_TYPE_PWK message.
+ *
  * @param fd The file descriptor to where the message should be sent.
  * @param poweron The power status.
  */
@@ -153,6 +159,7 @@ void            send_pwr_message(int fd, int poweron);
 
 /**
  * Initialize GPIO_7 used to sense PWK signal.
+ *
  * @return A sysfs file descriptor for the GPIO or -1 in case of error.
  *
  * The GPIO is configured as an "active low" input and with interrupt trigger
@@ -170,6 +177,7 @@ int             pwk_init(void);
 
 /**
  * Initialize a GPIO for output.
+ *
  * @param  gpio The number of the gpio to initialize
  * @retval  0   Initialization was successfull
  * @retval -1   An error occurred (errno is set)
@@ -187,6 +195,7 @@ int             gpio_init_out(unsigned int gpio);
 
 /**
  * Set GPIO value.
+ *
  * @param  gpio The number of the GPIO to set (must be initialized).
  * @retval  0   The operation was successful.
  * @retval -1   An error occurred (errno is set).

@@ -14,12 +14,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-/** \file 
+/**
+ * @file 
  * Simple ring buffer implementation.
  *
- * \author    Alexandru Csete
- * \date      2014/12/29
- * \copyright Simplified BSD License
+ * @author    Alexandru Csete
+ * @date      2014/12/29
+ * @copyright Simplified BSD License
  *
  * This file implements a simple ring buffer that can hold data of unsigned
  * char type. The present implementation does not contain any boundary checks
@@ -33,9 +34,9 @@
  * faster than reading.
  */
 
-
 /**
  * The ring buffer structure.
+ *
  * @buffer  The array of elements stored in the buffer.
  * @size    The sizeof the buffer.
  * @start   Index of the oldest element.
@@ -51,6 +52,7 @@ typedef struct {
 
 /**
  * Initialize the ring buffer.
+ *
  * @param rb Pointer to a newly allocated ring_buffer_t structure.
  * @param size The size of the buffer.
  *
@@ -72,6 +74,7 @@ static inline void ring_buffer_free(ring_buffer_t * rb)
 
 /**
  * Resize the ring buffer.
+ *
  * @param  rb  Pointer to the ring buffer
  * @param  newsize The new size desired for the buffer.
  *
@@ -87,6 +90,7 @@ static inline void ring_buffer_resize(ring_buffer_t * rb,
 
 /**
  * Check whether the buffer is full.
+ *
  * @param rb Pointer to the ring buffer.
  * @return 1 if the buffer is full, otherwise 0.
  */
@@ -114,7 +118,8 @@ static inline uint_fast32_t ring_buffer_size(ring_buffer_t * rb)
 }
 
 /**
- * Write data into the buffer
+ * Write data into the buffer.
+ *
  * @param rb   The ring buffer handle.
  * @param src  The source array.
  * @param num  The the number of elements in the input buffer. Must be less
@@ -155,9 +160,9 @@ static inline void ring_buffer_write(ring_buffer_t * rb, unsigned char *src,
     }
 }
 
-
 /**
  * Read data from the riung buffer.
+ *
  * @param  rb    The ring buffer handle.
  * @param  dest  Pointer to the preallocated destination buffer.
  * @param  num   The number of elements to read. Must be less than or equal to
@@ -193,6 +198,7 @@ static inline void ring_buffer_read(ring_buffer_t * rb, unsigned char *dest,
 
 /**
  * Clear the buffer.
+ *
  * @param rb The ring buffer handle.
  *
  * This function will clear the buffer by setting the start and the count to 0.

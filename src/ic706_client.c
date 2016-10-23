@@ -86,7 +86,6 @@ static void parse_options(int argc, char **argv)
                 help();
                 exit(EXIT_FAILURE);
             }
-
         }
     }
 }
@@ -106,7 +105,6 @@ int main(int argc, char **argv)
 
     struct timeval  timeout;
     int             res;
-
 
     /* initialize buffers */
     uart_buf.wridx = 0;

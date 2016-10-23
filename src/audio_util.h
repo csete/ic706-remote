@@ -60,6 +60,7 @@ typedef struct audio_data audio_t;
 
 /**
  * Initialize audio backend.
+ *
  * @param   index   The index of the audio device to initialize.
  * @param   sample_rate Sample rate. Use 0 for default.
  * @param   conf    Audio configuration, see AUDIO_CONF_xyz.
@@ -73,6 +74,7 @@ audio_t        *audio_init(int index, uint32_t sample_rate, uint8_t conf);
 
 /**
  * Close audio stream and terminate portaudio session.
+ *
  * @param audio The audio handle.
  * @return The error code returned by portaudio (0 means OK).
  */
@@ -80,6 +82,7 @@ int             audio_close(audio_t * audio);
 
 /**
  * Start audio stream for reading.
+ *
  * @param audio The audio handle.
  * @return  The error code returned by portaudio (0 means OK).
  */
@@ -87,13 +90,15 @@ int             audio_start(audio_t * audio);
 
 /**
  * Stop audio stream.
+ *
  * @param audio The audio handle.
  * @return The error code returned by portaudio (0 means OK).
  */
 int             audio_stop(audio_t * audio);
 
 /**
- * Get number of audio frames available for read
+ * Get number of audio frames available for read.
+ *
  * @param audio Pointer to the audio handle.
  * @return The number of frames available in the buffer.
  *
@@ -104,6 +109,7 @@ uint32_t        audio_frames_available(audio_t * audio);
 
 /**
  * Read audio frames.
+ *
  * @param   audio     Pointer to the audio handle.
  * @param   buffer    Pointer to the buffer where the data shouldbe copied.
  * @param   frames    The number of frames to copy.
@@ -113,7 +119,8 @@ uint32_t        audio_read_frames(audio_t * audio, unsigned char *buffer,
                                   uint32_t frames);
 
 /**
- * Write audio frames
+ * Write audio frames.
+ *
  * @param   audio   Pointer to the audio handle.
  * @param   buffer  Pointer to the buffer containing the frames to write.
  * @param   frames  The number of frames to write.

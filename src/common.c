@@ -83,7 +83,6 @@ int set_serial_config(int fd, int speed, int parity, int blocking)
     return 0;
 }
 
-
 int create_server_socket(int port)
 {
     struct sockaddr_in serv_addr;
@@ -181,7 +180,6 @@ int read_data(int fd, struct xfr_buf *buffer)
     return type;
 }
 
-
 int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
 {
     uint8_t         init1_resp[] = { 0xFE, 0xF0, 0xFD };
@@ -244,7 +242,6 @@ int transfer_data(int ifd, int ofd, struct xfr_buf *buffer)
 
     return pkt_type;
 }
-
 
 uint64_t time_ms(void)
 {
