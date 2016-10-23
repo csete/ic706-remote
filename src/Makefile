@@ -1,5 +1,5 @@
 #
-# 'make'        build executable file 'rtlizer'
+# 'make'        build executables
 # 'make clean'  removes all .o and executable files
 #
 
